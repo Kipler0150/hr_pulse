@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { employees, memberships, profiles } from "@/db/schema";
+import { employees, memberships, organizations, profiles } from "@/db/schema";
 import { validateUuid } from "@/db/validation";
 
 const roleRank = { employee: 1, manager: 2, administrator: 3 };
@@ -16,14 +16,21 @@ export async function resolveOrganizationAccess({ supabase, db, organizationId }
   const [membership] = await db
     .select()
     .from(memberships)
-    .where(and(eq(memberships.organizationId, organizationId), eq(memberships.profileId, profile.id)));
+    .where(and(
+      eq(memberships.organizationId, organizationId),
+      eq(memberships.profileId, profile.id),
+      eq(memberships.status, "active"),
+    ));
   if (!membership) throw new Error("Organization access denied");
+
+  const [organization] = await db.select().from(organizations).where(eq(organizations.id, organizationId));
+  if (!organization || organization.status !== "active") throw new Error("Organization access denied");
 
   const [employee] = await db
     .select()
     .from(employees)
     .where(and(eq(employees.organizationId, organizationId), eq(employees.profileId, profile.id)));
-  return { user, profile, membership: { ...membership, employeeId: employee?.id ?? null } };
+  return { user, profile, organization, membership: { ...membership, employeeId: employee?.id ?? null } };
 }
 
 export function assertRole(membership, requiredRole) {

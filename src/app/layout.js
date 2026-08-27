@@ -1,4 +1,6 @@
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
+import { normalizeTheme, THEME_COOKIE } from "@/lib/theme";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -16,11 +18,17 @@ export const metadata = {
   description: "Payroll and attendance operations for your organization",
 };
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+  const cookieStore = await cookies();
+  const theme = normalizeTheme(cookieStore.get(THEME_COOKIE)?.value);
+  const themeClass = theme === "system" ? "" : theme;
+
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${themeClass} h-full antialiased`}
+      data-theme={theme}
+      suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

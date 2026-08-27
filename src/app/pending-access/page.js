@@ -1,8 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Building2Icon, Clock3Icon, LogOutIcon } from "lucide-react";
+
+import { AuthShell } from "@/app/components/auth-shell";
 import { getAccessState } from "@/auth/access";
 import { signOut } from "@/auth/actions";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Access pending | HR Pulse" };
 
@@ -10,5 +15,25 @@ export default async function PendingAccessPage() {
   const state = await getAccessState();
   if (!state.user) redirect("/sign-in");
   if (state.profile?.status === "active" && state.memberships.length) redirect("/dashboard");
-  return <main className="flex min-h-screen items-center justify-center bg-muted/30 px-6 py-16"><section className="w-full max-w-xl rounded-xl border border-border bg-background p-8 shadow-sm sm:p-12" aria-labelledby="pending-title"><p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">HR Pulse</p><h1 id="pending-title" className="mt-8 text-3xl font-semibold tracking-tight">Your access is being prepared.</h1><p className="mt-4 max-w-lg text-base leading-7 text-muted-foreground">Your account is valid, but an administrator still needs to connect you to an active organization. You can safely close this page and return after that is complete.</p><div className="mt-8 flex flex-wrap gap-3"><form action={signOut}><Button type="submit">Sign out</Button></form><Button asChild variant="outline"><Link href="/sign-in">Return to sign in</Link></Button></div></section></main>;
+
+  return (
+    <AuthShell detail="Your account is secure while an administrator completes the organization connection." eyebrow="Provisioned access" title="A clear path into your workspace.">
+      <Card aria-labelledby="pending-title">
+        <CardHeader>
+          <span className="mb-3 flex size-11 items-center justify-center rounded-xl bg-warning/10 text-warning"><Clock3Icon aria-hidden="true" /></span>
+          <CardTitle id="pending-title">Your access is being prepared</CardTitle>
+          <CardDescription>Your account is valid, but an administrator still needs to connect you to an active organization. You can safely return after that is complete.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 sm:flex-row">
+          <form action={signOut}>
+            <Button className="w-full sm:w-auto" size="comfortable" type="submit"><LogOutIcon data-icon="inline-start" />Sign out</Button>
+          </form>
+          {state.profile?.status === "active" && state.memberships.length === 0 ? (
+            <Link className={cn(buttonVariants({ size: "comfortable", variant: "outline" }), "w-full sm:w-auto")} href="/setup/organization"><Building2Icon data-icon="inline-start" />Create organization</Link>
+          ) : null}
+          <Link className={cn(buttonVariants({ size: "comfortable", variant: "outline" }), "w-full sm:w-auto")} href="/sign-in">Return to sign in</Link>
+        </CardContent>
+      </Card>
+    </AuthShell>
+  );
 }

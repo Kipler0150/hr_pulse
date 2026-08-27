@@ -2,8 +2,13 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { ArrowRight, CheckCircle2, LoaderCircle } from "lucide-react";
+import { ArrowRightIcon, CheckCircle2Icon, CircleAlertIcon } from "lucide-react";
+
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 
 export function AuthForm({ action, mode, returnTo = "/dashboard", initialState = null }) {
   const [state, formAction, pending] = useActionState(action, initialState);
@@ -17,34 +22,55 @@ export function AuthForm({ action, mode, returnTo = "/dashboard", initialState =
       : "Enter your work email and we will send a secure recovery link.";
 
   return (
-    <section className="w-full max-w-md" aria-labelledby="auth-title">
+    <section aria-labelledby="auth-title" className="w-full max-w-md">
       <div className="mb-8">
         <p className="mb-4 text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">HR Pulse</p>
-        <h1 id="auth-title" className="text-3xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-3xl font-semibold tracking-tight" id="auth-title">{title}</h1>
         <p className="mt-3 text-base leading-7 text-muted-foreground">{description}</p>
       </div>
-      <form action={formAction} className="space-y-5" noValidate>
-        <input type="hidden" name="returnTo" value={returnTo} />
-        {!isReset && <Field label="Work email" name="email" type="email" autoComplete="email" required />}
-        {isSignIn && <Field label="Password" name="password" type="password" autoComplete="current-password" required />}
-        {isReset && <>
-          <Field label="New password" name="password" type="password" autoComplete="new-password" required />
-          <Field label="Confirm new password" name="confirmPassword" type="password" autoComplete="new-password" required />
-        </>}
-        {state?.error && <p id="auth-error" className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">{state.error}</p>}
-        {state?.success && <p className="flex gap-2 rounded-lg border border-border bg-muted px-4 py-3 text-sm" role="status"><CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />{state.success}</p>}
-        <Button className="h-11 w-full text-base" size="lg" type="submit" disabled={pending} aria-describedby={state?.error ? "auth-error" : undefined}>
-          {pending ? <><LoaderCircle className="animate-spin" aria-hidden="true" />Working...</> : <>{isSignIn ? "Sign in" : isReset ? "Update password" : "Send recovery link"}<ArrowRight aria-hidden="true" /></>}
+      <form action={formAction} className="flex flex-col gap-5" noValidate>
+        <input name="returnTo" type="hidden" value={returnTo} />
+        <FieldGroup>
+          {!isReset ? <AuthField autoComplete="email" label="Work email" name="email" required type="email" /> : null}
+          {isSignIn ? <AuthField autoComplete="current-password" label="Password" name="password" required type="password" /> : null}
+          {isReset ? (
+            <>
+              <AuthField autoComplete="new-password" label="New password" name="password" required type="password" />
+              <AuthField autoComplete="new-password" label="Confirm new password" name="confirmPassword" required type="password" />
+            </>
+          ) : null}
+        </FieldGroup>
+        {state?.error ? (
+          <Alert id="auth-error" variant="destructive">
+            <CircleAlertIcon aria-hidden="true" />
+            <AlertTitle>We could not complete that request</AlertTitle>
+            <AlertDescription>{state.error}</AlertDescription>
+          </Alert>
+        ) : null}
+        {state?.success ? (
+          <Alert variant="success">
+            <CheckCircle2Icon aria-hidden="true" />
+            <AlertTitle>Check your email</AlertTitle>
+            <AlertDescription>{state.success}</AlertDescription>
+          </Alert>
+        ) : null}
+        <Button aria-describedby={state?.error ? "auth-error" : undefined} className="w-full" disabled={pending} size="comfortable" type="submit">
+          {pending ? <><Spinner data-icon="inline-start" />Working...</> : <>{isSignIn ? "Sign in" : isReset ? "Update password" : "Send recovery link"}<ArrowRightIcon data-icon="inline-end" /></>}
         </Button>
       </form>
-      <nav className="mt-7 flex flex-wrap items-center justify-between gap-3 text-sm" aria-label="Authentication links">
-        {isSignIn ? <Link className="font-medium underline underline-offset-4" href="/forgot-password">Forgot password?</Link> : isReset ? <Link className="font-medium underline underline-offset-4" href="/forgot-password">Request a new link</Link> : <Link className="font-medium underline underline-offset-4" href="/sign-in">Back to sign in</Link>}
-        {!isReset && <span className="text-muted-foreground">Access is provisioned by your administrator.</span>}
+      <nav aria-label="Authentication links" className="mt-7 flex flex-wrap items-center justify-between gap-3 text-sm">
+        {isSignIn ? <Link className="min-h-11 content-center font-medium underline underline-offset-4" href="/forgot-password">Forgot password?</Link> : isReset ? <Link className="min-h-11 content-center font-medium underline underline-offset-4" href="/forgot-password">Request a new link</Link> : <Link className="min-h-11 content-center font-medium underline underline-offset-4" href="/sign-in">Back to sign in</Link>}
+        {!isReset ? <span className="text-muted-foreground">Access is provisioned by your administrator.</span> : null}
       </nav>
     </section>
   );
 }
 
-function Field({ label, name, ...props }) {
-  return <div className="space-y-2"><label className="text-sm font-medium" htmlFor={name}>{label}</label><input className="h-11 w-full rounded-lg border border-input bg-background px-3 text-base outline-none transition focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40" id={name} name={name} {...props} /></div>;
+function AuthField({ label, name, ...props }) {
+  return (
+    <Field>
+      <FieldLabel htmlFor={name}>{label}</FieldLabel>
+      <Input className="h-11 px-3 text-base" id={name} name={name} {...props} />
+    </Field>
+  );
 }

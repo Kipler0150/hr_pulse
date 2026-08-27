@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getRecoveryError } from "./recovery";
+import { getRecoveryError, getRecoverySessionFromHash } from "./recovery";
 
 describe("recovery callback errors", () => {
   it("returns a safe recovery message for an expired link", () => {
@@ -10,5 +10,18 @@ describe("recovery callback errors", () => {
 
   it("does not expose provider details for unknown callback errors", () => {
     expect(getRecoveryError("unexpected_provider_error")).toBeNull();
+  });
+
+  it("reads a recovery session returned in a URL fragment", () => {
+    expect(getRecoverySessionFromHash("#access_token=access&refresh_token=refresh&type=recovery")).toEqual({
+      session: {
+        access_token: "access",
+        refresh_token: "refresh",
+      },
+    });
+  });
+
+  it("ignores non recovery URL fragments", () => {
+    expect(getRecoverySessionFromHash("#access_token=access&refresh_token=refresh&type=signup")).toBeNull();
   });
 });

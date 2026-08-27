@@ -9,6 +9,16 @@ const blockedKeys = new Set([
   "requestBody",
   "ssn",
   "bankAccount",
+  "email",
+  "name",
+  "legalName",
+  "displayName",
+  "amount",
+  "grossAmountMinor",
+  "deductionsAmountMinor",
+  "netAmountMinor",
+  "pdf",
+  "document",
 ]);
 
 function sanitize(value) {

@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation";
+import { Building2Icon } from "lucide-react";
+
+import { AuthShell } from "@/app/components/auth-shell";
 import { getAccessState, safeReturnTo } from "@/auth/access";
 import { chooseOrganization } from "@/auth/actions";
 import { Button } from "@/components/ui/button";
+import { Field, FieldContent, FieldLabel, FieldTitle } from "@/components/ui/field";
 
 export const metadata = { title: "Choose organization | HR Pulse" };
 
@@ -11,5 +15,29 @@ export default async function ChooseOrganizationPage({ searchParams }) {
   if (!state.user) redirect("/sign-in");
   if (!state.profile || state.profile.status !== "active" || state.memberships.length === 0) redirect("/pending-access");
   if (state.memberships.length === 1) redirect(safeReturnTo(params?.returnTo));
-  return <main className="flex min-h-screen items-center justify-center bg-muted/30 px-6 py-16"><section className="w-full max-w-2xl" aria-labelledby="organization-title"><p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">HR Pulse</p><h1 id="organization-title" className="mt-5 text-3xl font-semibold tracking-tight">Choose your workspace</h1><p className="mt-3 text-muted-foreground">Select the organization you want to work in today.</p><form action={chooseOrganization} className="mt-8 grid gap-3"><input type="hidden" name="returnTo" value={safeReturnTo(params?.returnTo)} />{state.memberships.map((membership) => <label className="flex cursor-pointer items-center justify-between rounded-xl border border-border bg-background p-5 transition hover:border-foreground/40 has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/40" key={membership.id}><span><span className="block font-medium">{membership.organization.name}</span><span className="mt-1 block text-sm capitalize text-muted-foreground">{membership.role}</span></span><input className="size-5 accent-current" type="radio" name="organizationId" value={membership.organizationId} required /></label>)}<Button className="mt-3 h-11" type="submit">Continue</Button></form></section></main>;
+
+  return (
+    <AuthShell detail="Your role and records remain scoped to the organization you select." eyebrow="Organization context" title="Keep each workspace clearly separated.">
+      <section aria-labelledby="organization-title">
+        <span className="mb-5 flex size-11 items-center justify-center rounded-xl bg-accent text-accent-foreground"><Building2Icon aria-hidden="true" /></span>
+        <h1 className="text-3xl font-semibold tracking-tight" id="organization-title">Choose your workspace</h1>
+        <p className="mt-3 text-muted-foreground">Select the organization you want to work in today.</p>
+        <form action={chooseOrganization} className="mt-8 flex flex-col gap-3">
+          <input name="returnTo" type="hidden" value={safeReturnTo(params?.returnTo)} />
+          {state.memberships.map((membership) => (
+            <Field key={membership.id}>
+              <FieldLabel className="min-h-16 cursor-pointer border-border bg-card p-4 surface-shadow">
+                <FieldContent>
+                  <FieldTitle>{membership.organization.name}</FieldTitle>
+                  <p className="text-sm capitalize text-muted-foreground">{membership.role}</p>
+                </FieldContent>
+                <input className="size-5 shrink-0 accent-primary" name="organizationId" required type="radio" value={membership.organizationId} />
+              </FieldLabel>
+            </Field>
+          ))}
+          <Button className="mt-3" size="comfortable" type="submit">Continue</Button>
+        </form>
+      </section>
+    </AuthShell>
+  );
 }

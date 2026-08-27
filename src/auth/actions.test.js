@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn(), createRecoveryClient: vi.fn() }));
 vi.mock("@/auth/access", () => ({ getAccessState: vi.fn(), safeReturnTo: (value) => value?.startsWith("/") && !value.startsWith("//") ? value : "/dashboard" }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn((path) => { const error = new Error("redirect"); error.digest = `NEXT_REDIRECT;${path}`; throw error; }) }));
 vi.mock("next/headers", () => ({ cookies: vi.fn().mockResolvedValue({ set: vi.fn(), delete: vi.fn() }) }));
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createRecoveryClient } from "@/lib/supabase/server";
 import { getAccessState } from "@/auth/access";
 import { cookies } from "next/headers";
 import { chooseOrganization, requestPasswordReset, signIn, signOut, updatePassword } from "./actions";
@@ -27,19 +27,37 @@ describe("authentication actions", () => {
     expect(result.error).toBe("We could not complete that request. Check your details and try again.");
   });
 
-  it("does not reveal account existence in reset requests", async () => {
-    createClient.mockReturnValue({ auth: { resetPasswordForEmail: vi.fn().mockResolvedValue({ error: new Error("provider failure") }) } });
-    const result = await requestPasswordReset(null, form({ email: "person@example.com" }));
-    expect(result.error).toContain("could not send a recovery email");
+  it("uses the same generic reset response when the provider fails", async () => {
+    createRecoveryClient.mockReturnValue({ auth: { resetPasswordForEmail: vi.fn().mockResolvedValue({ error: new Error("provider failure") }) } });
+    const providerFailure = await requestPasswordReset(null, form({ email: "person@example.com" }));
+
+    createRecoveryClient.mockReturnValue({ auth: { resetPasswordForEmail: vi.fn().mockResolvedValue({ error: null }) } });
+    const providerSuccess = await requestPasswordReset(null, form({ email: "unknown@example.com" }));
+
+    expect(providerFailure).toEqual(providerSuccess);
+    expect(providerFailure.success).toBe("If an account matches that email, you will receive a recovery link shortly.");
   });
 
   it("returns a generic confirmation after a successful reset request", async () => {
     const resetPasswordForEmail = vi.fn().mockResolvedValue({ error: null });
-    createClient.mockReturnValue({ auth: { resetPasswordForEmail } });
+    createRecoveryClient.mockReturnValue({ auth: { resetPasswordForEmail } });
     const result = await requestPasswordReset(null, form({ email: "person@example.com" }));
     expect(result.success).toContain("If an account matches that email");
     expect(resetPasswordForEmail).toHaveBeenCalledWith("person@example.com", {
-      redirectTo: "http://localhost:3000/auth/callback?next=/reset-password",
+      redirectTo: "http://localhost:3000/reset-password",
+    });
+  });
+
+  it("requests a recovery link that does not depend on a PKCE verifier cookie", async () => {
+    const resetPasswordForEmail = vi.fn().mockResolvedValue({ error: null });
+    createClient.mockReturnValue({ auth: { resetPasswordForEmail } });
+    createRecoveryClient.mockReturnValue({ auth: { resetPasswordForEmail } });
+
+    await requestPasswordReset(null, form({ email: "person@example.com" }));
+
+    expect(createRecoveryClient).toHaveBeenCalledOnce();
+    expect(resetPasswordForEmail).toHaveBeenCalledWith("person@example.com", {
+      redirectTo: "http://localhost:3000/reset-password",
     });
   });
 
@@ -75,7 +93,7 @@ describe("authentication actions", () => {
 
   it("logs only an event category and timestamp after a reset request", async () => {
     const log = vi.spyOn(console, "info").mockImplementation(() => {});
-    createClient.mockResolvedValue({ auth: { resetPasswordForEmail: vi.fn().mockResolvedValue({ error: null }) } });
+    createRecoveryClient.mockReturnValue({ auth: { resetPasswordForEmail: vi.fn().mockResolvedValue({ error: null }) } });
 
     await requestPasswordReset(null, form({ email: "person@example.com" }));
     expect(log).toHaveBeenCalledWith("[auth]", expect.objectContaining({ event: "password_reset_requested", at: expect.any(String) }));

@@ -17,11 +17,20 @@ describe("authorization and audit boundaries", () => {
     })).toEqual({ operation: "terminate", nested: { count: 1 } });
   });
 
+  it("removes payroll and personal values at every nesting level, covers: AC-9", () => {
+    expect(sanitizeAuditMetadata({
+      grossAmountMinor: 500_000,
+      legalName: "Synthetic Employee",
+      rows: [{ employeeId: "employee-id", netAmountMinor: 450_000, nested: { document: "pdf bytes", status: "completed" } }],
+    })).toEqual({ rows: [{ employeeId: "employee-id", nested: { status: "completed" } }] });
+  });
+
   it("resolves an authenticated organization membership and employee link", async () => {
     const db = {
       select: vi.fn()
         .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([{ id: "profile-id", status: "active" }]) }) })
-        .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([{ id: "membership-id", role: "employee" }]) }) })
+        .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([{ id: "membership-id", role: "employee", status: "active" }]) }) })
+        .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([{ id: "organization-id", status: "active" }]) }) })
         .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([{ id: "employee-id" }]) }) }),
     };
     const supabase = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "123e4567-e89b-12d3-a456-426614174000" } }, error: null }) } };

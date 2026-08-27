@@ -4,8 +4,9 @@ import { assertMutable, assertTransition, getTransitions } from "./lifecycle";
 describe("core lifecycle guards", () => {
   it("allows only the transitions from the data model decision", () => {
     expect(assertTransition("employee", "active", "inactive")).toBe("inactive");
-    expect(assertTransition("payroll", "failed", "processing")).toBe("processing");
-    expect(assertTransition("payout", "processing", "paid")).toBe("paid");
+    expect(assertTransition("payroll", "failed", "queued")).toBe("queued");
+    expect(assertTransition("payout", "processing", "finalized")).toBe("finalized");
+    expect(assertTransition("payslip", "failed", "pending")).toBe("pending");
     expect(() => assertTransition("employee", "terminated", "active")).toThrow();
     expect(() => assertTransition("leave", "draft", "approved")).toThrow();
   });

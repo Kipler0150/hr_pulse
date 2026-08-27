@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { validateUuid } from "@/db/validation";
 import { getAccessState, safeReturnTo } from "@/auth/access";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createRecoveryClient } from "@/lib/supabase/server";
 
 const genericAuthError = "We could not complete that request. Check your details and try again.";
 const resetConfirmation = "If an account matches that email, you will receive a recovery link shortly.";
@@ -61,13 +61,13 @@ export async function requestPasswordReset(previousState, formData) {
   const email = String(formData.get("email") ?? "").trim();
   if (!validEmail(email)) return { error: "Enter a valid email address." };
 
-  const supabase = await createClient();
+  const supabase = createRecoveryClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/auth/callback?next=/reset-password`,
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/reset-password`,
   });
   if (error) {
     logAuthEvent("password_reset_failed");
-    return { error: "We could not send a recovery email right now. Please try again later." };
+    return { success: resetConfirmation };
   }
   logAuthEvent("password_reset_requested");
   return { success: resetConfirmation };

@@ -16,21 +16,21 @@ const transitions = {
     cancelled: [],
   },
   payroll: {
-    draft: ["processing"],
+    queued: ["processing", "failed"],
     processing: ["completed", "failed"],
     completed: [],
-    failed: ["processing"],
+    failed: ["queued"],
   },
   payout: {
-    pending: ["processing"],
-    processing: ["paid", "failed"],
-    paid: [],
-    failed: [],
+    pending: ["processing", "failed"],
+    processing: ["finalized", "failed"],
+    finalized: [],
+    failed: ["pending"],
   },
   payslip: {
     pending: ["generated", "failed"],
     generated: [],
-    failed: [],
+    failed: ["pending"],
   },
 };
 

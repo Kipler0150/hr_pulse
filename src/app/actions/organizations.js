@@ -1,18 +1,38 @@
 "use server";
 
 import { getDb } from "@/db";
-import { memberships, organizations, profiles } from "@/db/schema";
-import { validateCurrency } from "@/db/validation";
+import { eq, sql } from "drizzle-orm";
+import { memberships, organizations, payrollSchedules, profiles } from "@/db/schema";
+import { validateCurrency, validateDate, validatePayFrequency, validateTimezone } from "@/db/validation";
+import { getCurrencyExponent } from "@/payroll/currency";
+import { writeAuditEvent } from "@/lib/audit";
 import { createClient } from "@/lib/supabase/server";
 
-export async function createOrganization({ name, slug, timezone, defaultCurrency }) {
-  if (!name || !slug || !timezone) throw new Error("name, slug, and timezone are required");
-  validateCurrency(defaultCurrency);
-  try {
-    Intl.DateTimeFormat(undefined, { timeZone: timezone });
-  } catch {
-    throw new Error("timezone must be valid");
+function slugify(value) {
+  const slug = value.toLocaleLowerCase("en").trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90);
+  return slug || "organization";
+}
+
+function validateSchedule({ frequency, effectiveStartDate, anchorStartDate }) {
+  validatePayFrequency(frequency, "frequency");
+  validateDate(effectiveStartDate, "effectiveStartDate");
+  const day = Number(effectiveStartDate.slice(-2));
+  if (frequency === "weekly" || frequency === "biweekly") {
+    validateDate(anchorStartDate, "anchorStartDate");
+    if (anchorStartDate !== effectiveStartDate) throw new Error("the first anchored period must start on the effective date");
+    return;
   }
+  if (anchorStartDate) throw new Error("anchorStartDate is only used for weekly schedules");
+  if (frequency === "semimonthly" && ![1, 16].includes(day)) throw new Error("semimonthly schedules must start on day 1 or 16");
+  if (frequency === "monthly" && day !== 1) throw new Error("monthly schedules must start on day 1");
+}
+
+export async function createOrganization({ name, timezone, defaultCurrency, frequency, effectiveStartDate, anchorStartDate = null }) {
+  if (!name || !timezone) throw new Error("name and timezone are required");
+  validateCurrency(defaultCurrency);
+  getCurrencyExponent(defaultCurrency);
+  validateTimezone(timezone);
+  validateSchedule({ frequency, effectiveStartDate, anchorStartDate });
 
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
@@ -24,12 +44,37 @@ export async function createOrganization({ name, slug, timezone, defaultCurrency
     const [profile] = await transaction.insert(profiles).values({
       authUserId: user.id, email: user.email ?? "", displayName: user.user_metadata?.display_name ?? user.email ?? "",
     }).onConflictDoUpdate({ target: profiles.authUserId, set: { updatedAt: new Date() } }).returning();
+    const [existingFounder] = await transaction.select({ id: organizations.id }).from(organizations).where(eq(organizations.foundingProfileId, profile.id));
+    const [membershipCount] = await transaction.select({ count: sql`count(*)::int` }).from(memberships).where(eq(memberships.profileId, profile.id));
+    if (existingFounder || Number(membershipCount?.count ?? 0) > 0) throw new Error("This profile cannot found another organization");
+
+    const baseSlug = slugify(name);
+    let slug = baseSlug;
+    for (let suffix = 2; ; suffix += 1) {
+      const [existingSlug] = await transaction.select({ id: organizations.id }).from(organizations).where(eq(organizations.slug, slug));
+      if (!existingSlug) break;
+      slug = `${baseSlug.slice(0, 90 - String(suffix).length - 1)}-${suffix}`;
+    }
     const [organization] = await transaction.insert(organizations).values({
-      name, slug, timezone, defaultCurrency,
+      name: name.trim(), slug, timezone, defaultCurrency, foundingProfileId: profile.id,
     }).returning();
     const [membership] = await transaction.insert(memberships).values({
-      organizationId: organization.id, profileId: profile.id, role: "administrator",
+      organizationId: organization.id, profileId: profile.id, role: "administrator", status: "active",
     }).returning();
-    return { organizationId: organization.id, status: organization.status, administratorMembershipId: membership.id };
+    const [schedule] = await transaction.insert(payrollSchedules).values({
+      organizationId: organization.id,
+      frequency,
+      effectiveStartDate,
+      anchorStartDate: frequency === "weekly" || frequency === "biweekly" ? anchorStartDate : null,
+    }).returning();
+    await writeAuditEvent(transaction, {
+      organizationId: organization.id,
+      actorProfileId: profile.id,
+      action: "organization.founded",
+      entityType: "organization",
+      entityId: organization.id,
+      metadata: { scheduleId: schedule.id, scheduleVersion: schedule.version },
+    });
+    return { organizationId: organization.id, slug, status: organization.status, administratorMembershipId: membership.id, payrollScheduleId: schedule.id };
   });
 }

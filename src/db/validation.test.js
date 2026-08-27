@@ -3,8 +3,11 @@ import {
   validateCurrency,
   validateDate,
   validateDateRange,
+  validateDeductionLines,
   validateMinorAmount,
+  validatePayFrequency,
   validatePayoutAmounts,
+  validateTimezone,
   validateTimestamp,
   validateUuid,
 } from "./validation";
@@ -15,6 +18,8 @@ describe("core data validation", () => {
     expect(validateDate("2026-08-23")).toBe("2026-08-23");
     expect(validateTimestamp("2026-08-23T12:00:00Z")).toBeInstanceOf(Date);
     expect(validateCurrency("USD")).toBe("USD");
+    expect(validateTimezone("Asia/Manila")).toBe("Asia/Manila");
+    expect(validatePayFrequency("semimonthly")).toBe("semimonthly");
     expect(validateMinorAmount(1250)).toBe(1250);
   });
 
@@ -23,8 +28,17 @@ describe("core data validation", () => {
     expect(() => validateDate("2026-02-30")).toThrow();
     expect(() => validateTimestamp("tomorrow")).toThrow();
     expect(() => validateCurrency("usd")).toThrow();
+    expect(() => validateTimezone("Moon/Base")).toThrow();
+    expect(() => validatePayFrequency("daily")).toThrow();
     expect(() => validateMinorAmount(12.5)).toThrow();
     expect(() => validateMinorAmount(-1)).toThrow();
+  });
+
+  it("validates named positive deductions", () => {
+    expect(validateDeductionLines([{ name: "Benefits", amountMinor: "500" }])).toEqual([
+      { name: "Benefits", amountMinor: 500, displayOrder: 0 },
+    ]);
+    expect(() => validateDeductionLines([{ name: "Loan", amountMinor: 10 }, { name: "loan", amountMinor: 20 }])).toThrow();
   });
 
   it("checks ranges and payout arithmetic", () => {

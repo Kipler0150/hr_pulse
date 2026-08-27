@@ -49,5 +49,6 @@ yarn-error.log*
 /skills-lock.json
 
 # local tooling state
+/.playwright-cli/
 /test-results/
 /test-preferences.json

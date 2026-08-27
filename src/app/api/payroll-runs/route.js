@@ -1,27 +1,26 @@
-import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { getDb } from "@/db";
-import { organizations, payrollRuns } from "@/db/schema";
-import { validateCurrency, validateDateRange, validateUuid } from "@/db/validation";
-import { jsonError, parseJson } from "@/lib/api";
-import { resolveOrganizationAccess, assertRole } from "@/lib/authorization";
-import { createClient } from "@/lib/supabase/server";
+import { jsonError } from "@/lib/api";
+import { requirePayrollAdministrator } from "@/payroll/access";
+import { listPayrollRuns } from "@/payroll/service";
 
-export async function POST(request) {
+export async function GET(request) {
   try {
-    const body = await parseJson(request);
-    const organizationId = validateUuid(body.organizationId, "organizationId");
-    validateDateRange(body.periodStart, body.periodEnd);
-    if (!body.idempotencyKey) throw new Error("idempotencyKey is required");
-    const db = getDb();
-    const { membership } = await resolveOrganizationAccess({ supabase: await createClient(), db, organizationId });
-    assertRole(membership, "administrator");
-    const [organization] = await db.select().from(organizations).where(eq(organizations.id, organizationId));
-    const currency = validateCurrency(body.currency ?? organization.defaultCurrency);
-    const [run] = await db.insert(payrollRuns).values({
-      organizationId, periodStart: body.periodStart, periodEnd: body.periodEnd,
-      currency, idempotencyKey: body.idempotencyKey,
-    }).returning();
-    return NextResponse.json(run, { status: 201 });
+    const context = await requirePayrollAdministrator();
+    const cursor = new URL(request.url).searchParams.get("cursor");
+    const { rows, nextCursor } = await listPayrollRuns(context.organizationId, cursor);
+    return NextResponse.json({
+      data: rows.map((run) => ({
+        id: run.id,
+        periodStart: run.periodStart,
+        periodEnd: run.periodEnd,
+        status: run.status,
+        currency: run.currency,
+        grossTotalMinor: run.grossTotalMinor,
+        deductionsTotalMinor: run.deductionsTotalMinor,
+        netTotalMinor: run.netTotalMinor,
+        updatedAt: run.updatedAt,
+      })),
+      nextCursor,
+    });
   } catch (error) { return jsonError(error); }
 }

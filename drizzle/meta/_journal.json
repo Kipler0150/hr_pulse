@@ -15,6 +15,41 @@
       "when": 1787473862118,
       "tag": "0001_silent_archangel",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787662212390,
+      "tag": "0002_fix_rls_profile_lookup",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787663007844,
+      "tag": "0003_zippy_mastermind",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787663806586,
+      "tag": "0004_validate_payout_gross_constraint",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787724234018,
+      "tag": "0005_steep_pixie",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787732728961,
+      "tag": "0006_fix_payroll_terminal_trigger",
+      "breakpoints": true
     }
   ]
 }

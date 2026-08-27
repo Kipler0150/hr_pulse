@@ -45,7 +45,7 @@ export async function getAccessState({ organizationId } = {}) {
     ))
     .where(eq(memberships.profileId, profile.id));
 
-  const availableMemberships = rows.map((row) => ({
+  const availableMemberships = rows.filter((row) => row.membership.status === "active").map((row) => ({
     ...row.membership,
     organization: row.organization,
     employeeId: row.employeeId,
