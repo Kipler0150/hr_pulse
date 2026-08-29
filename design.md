@@ -1,27 +1,29 @@
 ---
-name: calm-operational-design-system
-source: derived from the approved spec and current interface
-character: "Calm, dependable, and precise. Deep blue anchors operational work, restrained gold marks selected context, and clear neutral surfaces keep payroll and attendance information easy to scan."
+name: hr-pulse-operational-design-system
+source: extracted-from-code
+character: "Calm, trustworthy operational software with deep navy structure and restrained warm gold emphasis. Information is dense enough for payroll work, but generous spacing, explicit language, and clear status treatment keep every surface approachable."
 tokens: "Real values live in src/app/globals.css. Read them there and never duplicate them here."
-contrast: "Muted text 5.67:1 light and 10.57:1 dark. Ink 15.33:1 light and 16.94:1 dark. On primary 11.60:1 light and 8.47:1 dark. Control borders exceed 3:1 in both themes."
+contrast: "Body 5.67:1 light and 10.57:1 dark. Ink 15.33:1 light and 16.94:1 dark. Primary text 11.60:1 light and 8.47:1 dark. Control borders 3.49:1 light and 3.55:1 dark."
 ---
 
 ## Build mandate
 
-Every page is a complete HR Pulse surface with a clear brand, direct product copy, useful context, responsive states, and a focused next action. Authentication uses a composed two panel layout on wide screens and a substantial branded card on narrow screens. Operational pages use the application shell and never leave content floating on an empty canvas.
+Ship every HR Pulse page as a complete operational surface. Include the product shell, specific context, clear hierarchy, the main workflow, supporting guidance, and honest loading, empty, blocked, error, stale, and success states. Use real application data. Avoid isolated forms, bare tables, decorative clutter, or controls without surrounding context.
 
 ## Character and direction
 
-The interface should feel like a steady operations desk. Use deep blue for navigation and primary actions. Use gold only for selected context or a small point of emphasis. Prefer crisp hierarchy, low chroma surfaces, tabular numbers, and modest depth over decorative effects.
+HR Pulse should feel dependable and composed. Deep navy anchors navigation and primary actions. Warm gold is a measured signal for emphasis, not decoration. Cards, subtle elevation, strong typography, and tabular number treatment make payroll and attendance evidence easy to scan. Language is direct, specific, and calm even when work is blocked.
 
 ## Composition patterns
 
-Authentication pairs a branded context panel with a comfortable form. Access states use a branded frame with one clear explanation and recovery action. Signed in work uses a persistent desktop sidebar, a mobile modal sheet, a compact context bar, a page header, and responsive content cards. Data keeps priority values visible and moves secondary values into labelled disclosure on narrow screens.
+Protected screens live inside the shared application shell. Start with an eyebrow, a clear page title, concise supporting copy, and the most important status or action. Group related work into named sections with a steady vertical rhythm. Use cards for summaries and bounded tasks, alerts for actionable context, tables for wide administrative review, and responsive records for the same information on small screens. Detail pages lead with identity and state, then show totals, evidence, history, and actions in that order.
 
 ## Component and usage rules
 
-Use semantic tokens and the shared components under `src/components/ui`. Primary buttons are deep blue and reserved for the main action. Gold is not a warning color. Cards use a visible boundary and subtle surface shadow. Forms use comfortable controls and persistent labels. Administrative tables and toolbars may use compact spacing. Status always includes text plus an icon or shape. Future destinations do not appear until their routes work.
+Use checked in shadcn components before custom markup. Use complete card composition with a header and description. Use `FieldGroup` and `Field` for forms, with persistent labels and linked errors. Use semantic status variants and tokens. Reserve the primary button for the main action in a section. Use outline or ghost variants for supporting actions. Use borders for structure and existing shadow tokens only for intentional elevation. Use Lucide icons from the configured library, and pair color with text or an icon whenever it communicates status.
+
+Do not introduce raw colors, duplicate CSS tokens, manual dark mode colors, custom overlay stacking, decorative gradients, or one off form layouts. Do not hide payroll or attendance context behind hover only interactions. Render notes as plain text.
 
 ## Responsive and accessibility direction
 
-Design from 360 pixels upward. The desktop shell begins at 768 pixels and content reaches its maximum at 1280 pixels. Comfortable actions have at least a 44 pixel target. Keep navigation and actions available at every width. Use native elements first, restore focus after overlays, provide a skip link, honor reduced motion, and meet WCAG 2.1 AA contrast in both themes.
+Design from the smallest supported width. Keep primary values and actions visible, and move secondary table columns into `ResponsiveRecord` disclosure on small screens. Preserve at least comfortable touch targets, visible focus, semantic headings and tables, keyboard operation, and announced mutation results. Light and dark themes must carry the same meaning and hierarchy. Organization timezone, currency, period, employee identity, and workflow status stay explicit wherever they affect a decision.

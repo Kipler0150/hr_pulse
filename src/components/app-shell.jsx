@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { Building2Icon, LandmarkIcon, LayoutDashboardIcon, LogOutIcon } from "lucide-react";
+import { Building2Icon, CalendarClockIcon, ClipboardCheckIcon, LandmarkIcon, LayoutDashboardIcon, LogOutIcon } from "lucide-react";
 
+import { isAttendanceEnabled } from "@/attendance/config";
+import { isOvertimeEnabled } from "@/overtime/config";
 import { signOut } from "@/auth/actions";
 import { BrandMark } from "@/components/brand-mark";
 import { MobileNavigation } from "@/components/mobile-navigation";
@@ -38,6 +40,12 @@ export function AppShell({ children, state, themePreference }) {
   const organizationName = state.selected.organization.name;
   const canSwitch = state.memberships.length > 1;
   const canManagePayroll = state.selected.role === "administrator";
+  const attendanceHref = isAttendanceEnabled()
+    ? state.selected.role === "employee" ? "/attendance" : "/attendance/review"
+    : null;
+  const timecardsHref = isOvertimeEnabled()
+    ? state.selected.role === "employee" ? "/timecards" : "/timecards/review"
+    : null;
   const mobileFooter = (
     <div className="flex flex-col gap-4">
       <Identity email={state.user.email} name={name} role={state.selected.role} />
@@ -65,6 +73,18 @@ export function AppShell({ children, state, themePreference }) {
               Payroll
             </Link>
           ) : null}
+          {attendanceHref ? (
+            <Link className={cn(buttonVariants({ size: "comfortable", variant: "ghost" }), "justify-start text-sidebar-foreground")} data-slot="navigation-link" href={attendanceHref}>
+              <CalendarClockIcon data-icon="inline-start" />
+              Attendance
+            </Link>
+          ) : null}
+          {timecardsHref ? (
+            <Link className={cn(buttonVariants({ size: "comfortable", variant: "ghost" }), "justify-start text-sidebar-foreground")} data-slot="navigation-link" href={timecardsHref}>
+              <ClipboardCheckIcon data-icon="inline-start" />
+              Timecards
+            </Link>
+          ) : null}
           {canSwitch ? (
             <Link className={cn(buttonVariants({ size: "comfortable", variant: "ghost" }), "justify-start text-sidebar-foreground")} data-slot="navigation-link" href="/choose-organization">
               <Building2Icon data-icon="inline-start" />
@@ -82,7 +102,7 @@ export function AppShell({ children, state, themePreference }) {
           <div className="flex min-h-16 items-center justify-between gap-3 px-4 sm:px-6 xl:px-8">
             <div className="flex min-w-0 items-center gap-2">
               <div className="md:hidden">
-                <MobileNavigation footer={mobileFooter} organizationName={organizationName} payroll={canManagePayroll} switchOrganization={canSwitch} />
+                <MobileNavigation attendance={attendanceHref} footer={mobileFooter} organizationName={organizationName} payroll={canManagePayroll} switchOrganization={canSwitch} timecards={timecardsHref} />
               </div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{organizationName}</p>

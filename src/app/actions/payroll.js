@@ -1,5 +1,7 @@
 "use server";
 
+import { createHash } from "node:crypto";
+
 import { and, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -7,6 +9,7 @@ import { getDb } from "@/db";
 import {
   employees,
   memberships,
+  mutationReceipts,
   organizations,
   paySettingDeductions,
   paySettings,
@@ -15,6 +18,7 @@ import {
   payrollSchedules,
   payslips,
   profiles,
+  timecards,
 } from "@/db/schema";
 import {
   validateDate,
@@ -24,9 +28,10 @@ import {
 } from "@/db/validation";
 import { writeAuditEvent } from "@/lib/audit";
 import { getCurrencyExponent } from "@/payroll/currency";
+import { isOvertimeEnabled } from "@/overtime/config";
 import { requirePayrollAdministrator } from "@/payroll/access";
 import { serializePayrollError } from "@/payroll/errors";
-import { nextDate } from "@/payroll/periods";
+import { getPeriodContaining, nextDate } from "@/payroll/periods";
 import { submitPayrollRun } from "@/payroll/queue";
 import { confirmPayroll, getPayrollRun, previewPayroll } from "@/payroll/service";
 
@@ -124,6 +129,9 @@ export async function savePaySettingAction(previousState, formData) {
   try {
     const context = await requirePayrollAdministrator();
     const employeeId = validateUuid(text(formData, "employeeId"), "employeeId");
+    const requestId = validateUuid(text(formData, "requestId"), "requestId");
+    const expectedVersion = Number(text(formData, "expectedVersion"));
+    if (!Number.isInteger(expectedVersion) || expectedVersion < 0) throw new Error("The pay setting version is invalid. Refresh and try again");
     const database = getDb();
     const [organization] = await database.select().from(organizations).where(eq(organizations.id, context.organizationId));
     const [schedule] = await database.select().from(payrollSchedules).where(eq(payrollSchedules.organizationId, context.organizationId));
@@ -132,6 +140,12 @@ export async function savePaySettingAction(previousState, formData) {
     const effectiveTo = effectiveToValue ? validateDate(effectiveToValue, "effectiveTo") : null;
     if (effectiveTo && effectiveTo < effectiveFrom) throw new Error("Effective end must be on or after effective start");
     const grossAmountMinor = parseMajorAmount(text(formData, "grossAmount"), organization.defaultCurrency, "Gross pay");
+    const overtimeEligible = isOvertimeEnabled() && formData.get("overtimeEligible") === "on";
+    const standardPeriodMinutes = overtimeEligible ? Number(text(formData, "standardPeriodMinutes")) : null;
+    const overtimeMultiplierBasisPoints = overtimeEligible ? Number(text(formData, "overtimeMultiplierBasisPoints")) : null;
+    if (overtimeEligible && (!Number.isInteger(standardPeriodMinutes) || standardPeriodMinutes < 1 || !Number.isInteger(overtimeMultiplierBasisPoints) || overtimeMultiplierBasisPoints < 10000 || overtimeMultiplierBasisPoints > 50000)) {
+      throw new Error("Eligible overtime needs valid standard period minutes and a multiplier from 10000 through 50000 basis points");
+    }
     const names = formData.getAll("deductionName");
     const amounts = formData.getAll("deductionAmount");
     const deductionInputs = names.map((name, index) => ({ name: String(name).trim(), amount: String(amounts[index] ?? "").trim(), index }))
@@ -143,9 +157,54 @@ export async function savePaySettingAction(previousState, formData) {
     const deductionTotal = deductions.reduce((total, deduction) => total + deduction.amountMinor, 0);
     if (deductionTotal > grossAmountMinor) throw new Error("Deductions cannot exceed gross pay");
 
+    const payloadHash = createHash("sha256").update(JSON.stringify({
+      employeeId,
+      effectiveFrom,
+      effectiveTo,
+      grossAmountMinor,
+      overtimeEligible,
+      standardPeriodMinutes,
+      overtimeMultiplierBasisPoints,
+      deductions,
+      expectedVersion,
+    })).digest("hex");
+
     const setting = await database.transaction(async (transaction) => {
+      const [receipt] = await transaction.select().from(mutationReceipts).where(and(
+        eq(mutationReceipts.organizationId, context.organizationId),
+        eq(mutationReceipts.operation, "pay_setting.save"),
+        eq(mutationReceipts.requestId, requestId),
+      ));
+      if (receipt) {
+        if (receipt.payloadHash !== payloadHash) throw new Error("This request identifier was already used for different pay setting data");
+        const [existing] = await transaction.select().from(paySettings).where(eq(paySettings.id, receipt.resultEntityId));
+        if (!existing) throw new Error("The earlier pay setting result is no longer available");
+        return existing;
+      }
+      await transaction.execute(sql`SELECT id FROM organizations WHERE id = ${context.organizationId} FOR UPDATE`);
       const [employee] = await transaction.select().from(employees).where(and(eq(employees.id, employeeId), eq(employees.organizationId, context.organizationId)));
       if (!employee) throw new Error("Employee not found");
+      const [latest] = await transaction.select().from(paySettings).where(eq(paySettings.employeeId, employeeId)).orderBy(desc(paySettings.version)).limit(1);
+      if ((latest?.version ?? 0) !== expectedVersion) throw new Error("This employee pay history changed. Refresh and try again");
+      const period = getPeriodContaining(schedule, effectiveFrom);
+      const [duration] = await transaction.execute(sql`
+        SELECT floor(extract(epoch from (
+          ((${period.periodEnd}::date + 1)::timestamp AT TIME ZONE ${organization.timezone})
+          - (${period.periodStart}::date::timestamp AT TIME ZONE ${organization.timezone})
+        )) / 60)::integer AS actual_minutes
+      `);
+      if (overtimeEligible && standardPeriodMinutes > Number(duration.actual_minutes)) {
+        throw new Error("Standard period minutes cannot exceed the actual minutes in the effective payroll period");
+      }
+      const conflictFilters = [
+        eq(timecards.organizationId, context.organizationId),
+        eq(timecards.employeeId, employeeId),
+        sql`${timecards.status} IN ('submitted', 'approved')`,
+        sql`${timecards.periodEnd} >= ${effectiveFrom}`,
+      ];
+      if (effectiveTo) conflictFilters.push(sql`${timecards.periodStart} <= ${effectiveTo}`);
+      const [conflict] = await transaction.select({ id: timecards.id }).from(timecards).where(and(...conflictFilters)).limit(1);
+      if (conflict) throw new Error("This pay setting overlaps a submitted or approved timecard");
       const [saved] = await transaction.insert(paySettings).values({
         employeeId,
         effectiveFrom,
@@ -153,15 +212,29 @@ export async function savePaySettingAction(previousState, formData) {
         payFrequency: schedule.frequency,
         grossAmountMinor,
         currency: organization.defaultCurrency,
+        overtimeEligible,
+        standardPeriodMinutes,
+        overtimeMultiplierBasisPoints,
+        version: expectedVersion + 1,
       }).returning();
       if (deductions.length > 0) await transaction.insert(paySettingDeductions).values(deductions.map((deduction) => ({ ...deduction, paySettingId: saved.id })));
+      await transaction.insert(mutationReceipts).values({
+        organizationId: context.organizationId,
+        actorProfileId: context.profile.id,
+        operation: "pay_setting.save",
+        requestId,
+        payloadHash,
+        resultEntityType: "pay_setting",
+        resultEntityId: saved.id,
+        resultVersion: saved.version,
+      });
       await writeAuditEvent(transaction, {
         organizationId: context.organizationId,
         actorProfileId: context.profile.id,
         action: "pay_setting.created",
         entityType: "pay_setting",
         entityId: saved.id,
-        metadata: { employeeId, version: saved.version, deductionCount: deductions.length },
+        metadata: { employeeId, version: saved.version, deductionCount: deductions.length, overtimeEligible },
       });
       return saved;
     });
@@ -234,6 +307,10 @@ export async function previewPayrollAction() {
           employeeId: row.employee.id,
           employeeNumber: row.employee.employeeNumber,
           legalName: row.employee.legalName,
+          baseGrossAmountMinor: row.baseGrossAmountMinor,
+          overtimeAmountMinor: row.overtimeAmountMinor,
+          payableOvertimeMinutes: row.payableOvertimeMinutes,
+          overtimeMultiplierBasisPoints: row.overtimeMultiplierBasisPoints,
           grossAmountMinor: row.grossAmountMinor,
           deductions: row.deductions,
           deductionsAmountMinor: row.deductionsAmountMinor,

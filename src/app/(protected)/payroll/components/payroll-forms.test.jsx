@@ -40,13 +40,25 @@ describe("payroll forms", () => {
   });
 
   it("labels gross pay and every named deduction input, covers: AC-2 and AC-10", () => {
-    render(<PaySettingForm currency="USD" employeeId="employee-id" frequency="monthly" />);
+    render(<PaySettingForm currency="USD" employeeId="employee-id" expectedVersion={2} frequency="monthly" requestId="request-id" />);
 
     expect(screen.getByLabelText("Gross pay per monthly period")).toBeRequired();
     expect(screen.getByRole("group", { name: "Recurring fixed deductions" })).toBeVisible();
     expect(screen.getByLabelText("Deduction 1 name")).toBeVisible();
     expect(screen.getAllByLabelText("Amount")).toHaveLength(3);
     expect(screen.getByRole("button", { name: "Add effective pay setting" })).toBeVisible();
+  });
+
+  it("reveals bounded overtime inputs and carries concurrency fields, covers: overtime AC-1, AC-2, and AC-6", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<PaySettingForm currency="PHP" employeeId="employee-id" expectedVersion={3} frequency="semimonthly" overtimeEnabled requestId="request-id" />);
+
+    expect(container.querySelector('input[name="requestId"]')).toHaveValue("request-id");
+    expect(container.querySelector('input[name="expectedVersion"]')).toHaveValue("3");
+    expect(screen.queryByLabelText("Standard period minutes")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "Eligible for overtime" }));
+    expect(screen.getByLabelText("Standard period minutes")).toBeRequired();
+    expect(screen.getByLabelText("Overtime multiplier basis points")).toHaveValue(15000);
   });
 
   it("renders exact preview totals and a confirmation control, covers: AC-3, AC-4, AC-6, and AC-10", async () => {

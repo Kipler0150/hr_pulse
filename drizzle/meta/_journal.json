@@ -50,6 +50,27 @@
       "when": 1787732728961,
       "tag": "0006_fix_payroll_terminal_trigger",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787831362934,
+      "tag": "0007_marvelous_ezekiel",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787832545872,
+      "tag": "0008_restrict_attendance_function_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787916077417,
+      "tag": "0009_cooing_grey_gargoyle",
+      "breakpoints": true
     }
   ]
 }

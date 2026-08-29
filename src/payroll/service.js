@@ -8,6 +8,7 @@ import {
   paySettingDeductions,
   paySettings,
   payoutDeductionLines,
+  payoutEarningLines,
   payouts,
   payrollPreviewTokens,
   payrollRunAttempts,
@@ -23,6 +24,8 @@ import { PayrollError, payrollIssue } from "./errors";
 import { createPreviewToken, createSourceFingerprint, hashPreviewToken } from "./fingerprint";
 import { getNextPeriod, getOrganizationLocalDate, isClosedPeriod } from "./periods";
 import { decodeCursor, decodeTimestampCursor, encodeCursor, encodeTimestampCursor, PAYROLL_PAGE_SIZE } from "./pagination";
+import { isOvertimeEnabled } from "@/overtime/config";
+import { getApprovedTimecardsForPayroll, insertPayoutEarningLine, overtimeFingerprintRows, writePayrollTimecardAudit } from "@/overtime/service";
 
 const PREVIEW_LIFETIME_MS = 30 * 60 * 1000;
 const DELAYED_AFTER_MS = 30 * 60 * 1000;
@@ -91,12 +94,17 @@ async function loadPreview(database, organizationId) {
   if (employeeRows.length === 0) issues.push(payrollIssue("NO_ELIGIBLE_EMPLOYEES"));
 
   const employeeIds = employeeRows.map((employee) => employee.id);
+  const overtimeEnabled = isOvertimeEnabled();
+  const approvedTimecards = overtimeEnabled ? await getApprovedTimecardsForPayroll(database, organizationId, period, employeeIds) : [];
+  const timecardByEmployee = new Map(approvedTimecards.map((card) => [card.employeeId, card]));
+  if (overtimeEnabled) {
+    for (const employee of employeeRows) if (!timecardByEmployee.has(employee.id)) issues.push(payrollIssue("TIMECARD_APPROVAL_MISSING", { employeeId: employee.id, field: "timecard" }));
+  }
+  const approvedSettingIds = approvedTimecards.map((card) => card.paySettingId);
   const settingRows = employeeIds.length === 0 ? [] : await database.select().from(paySettings)
-    .where(and(
-      inArray(paySettings.employeeId, employeeIds),
-      lte(paySettings.effectiveFrom, period.periodStart),
-      or(isNull(paySettings.effectiveTo), sql`${paySettings.effectiveTo} >= ${period.periodEnd}`),
-    ));
+    .where(overtimeEnabled
+      ? approvedSettingIds.length > 0 ? inArray(paySettings.id, approvedSettingIds) : sql`false`
+      : and(inArray(paySettings.employeeId, employeeIds), lte(paySettings.effectiveFrom, period.periodStart), or(isNull(paySettings.effectiveTo), sql`${paySettings.effectiveTo} >= ${period.periodEnd}`)));
   const settingIds = settingRows.map((setting) => setting.id);
   const deductionRows = settingIds.length === 0 ? [] : await database.select().from(paySettingDeductions)
     .where(inArray(paySettingDeductions.paySettingId, settingIds))
@@ -106,7 +114,9 @@ async function loadPreview(database, organizationId) {
   const rows = [];
 
   for (const employee of employeeRows) {
-    const setting = settingByEmployee.get(employee.id);
+    const timecard = timecardByEmployee.get(employee.id) ?? null;
+    if (overtimeEnabled && !timecard) continue;
+    const setting = overtimeEnabled ? settingRows.find((row) => row.id === timecard?.paySettingId) : settingByEmployee.get(employee.id);
     if (!setting) {
       issues.push(payrollIssue("PAY_SETTING_MISSING", { employeeId: employee.id, field: "paySetting" }));
       continue;
@@ -121,10 +131,10 @@ async function loadPreview(database, organizationId) {
     }
     try {
       const calculation = calculatePayout({
-        grossAmountMinor: setting.grossAmountMinor,
+        grossAmountMinor: overtimeEnabled ? timecard.baseGrossAmountMinor + timecard.overtimeAmountMinor : setting.grossAmountMinor,
         deductions: deductionsBySetting.get(setting.id) ?? [],
       });
-      rows.push({ employee, paySetting: setting, ...calculation });
+      rows.push({ employee, paySetting: setting, timecard, baseGrossAmountMinor: overtimeEnabled ? timecard.baseGrossAmountMinor : setting.grossAmountMinor, overtimeAmountMinor: timecard?.overtimeAmountMinor ?? 0, payableOvertimeMinutes: timecard?.payableOvertimeMinutes ?? 0, overtimeMultiplierBasisPoints: timecard?.overtimeMultiplierBasisPoints ?? null, ...calculation });
     } catch (error) {
       const code = error.message.includes("exceed") ? "DEDUCTIONS_EXCEED_GROSS" : "PAY_SETTING_MISSING";
       issues.push(payrollIssue(code, { employeeId: employee.id, field: "deductions" }));
@@ -162,8 +172,11 @@ async function loadPreview(database, organizationId) {
         effectiveFrom: row.paySetting.effectiveFrom,
         effectiveTo: row.paySetting.effectiveTo,
         payFrequency: row.paySetting.payFrequency,
-        grossAmountMinor: row.paySetting.grossAmountMinor,
+        grossAmountMinor: row.baseGrossAmountMinor,
         currency: row.paySetting.currency,
+        overtimeEligible: row.timecard?.overtimeEligible ?? row.paySetting.overtimeEligible,
+        standardPeriodMinutes: row.timecard?.standardPeriodMinutes ?? row.paySetting.standardPeriodMinutes,
+        overtimeMultiplierBasisPoints: row.timecard?.overtimeMultiplierBasisPoints ?? row.paySetting.overtimeMultiplierBasisPoints,
         updatedAt: row.paySetting.updatedAt,
       },
       deductions: row.deductions.map((deduction) => ({
@@ -173,6 +186,7 @@ async function loadPreview(database, organizationId) {
         displayOrder: deduction.displayOrder,
       })),
     })),
+    approvedTimecards: overtimeEnabled ? overtimeFingerprintRows(approvedTimecards) : [],
     calculationVersion: PAYROLL_CALCULATION_VERSION,
   };
 
@@ -280,6 +294,7 @@ export async function confirmPayroll({ organizationId, actorProfileId, token }) 
           displayOrder: deduction.displayOrder,
         })));
       }
+      if (row.timecard) await insertPayoutEarningLine(transaction, payout, row.timecard);
       await transaction.insert(payslips).values({ payoutId: payout.id });
     }
     await transaction.update(payrollPreviewTokens).set({ consumedAt: new Date() }).where(eq(payrollPreviewTokens.id, previewToken.id));
@@ -291,6 +306,7 @@ export async function confirmPayroll({ organizationId, actorProfileId, token }) 
       entityId: run.id,
       metadata: { calculationVersion: PAYROLL_CALCULATION_VERSION, status: "queued" },
     });
+    if (isOvertimeEnabled()) await writePayrollTimecardAudit(transaction, organizationId, actorProfileId, run.id, preview.rows.map((row) => row.timecard));
     return { run, duplicate: false };
   });
   return result;
@@ -352,10 +368,12 @@ export async function getPayrollRun(organizationId, runId, cursorValue) {
   const delayed = ["queued", "processing"].includes(run.status) && Date.now() - lastProgress.getTime() >= DELAYED_AFTER_MS;
   const recoveryEligible = delayed && run.leaseExpiresAt && run.leaseExpiresAt <= new Date();
   const payoutRows = allPayoutRows.slice(0, PAYROLL_PAGE_SIZE);
+  const payoutIds = payoutRows.map((row) => row.payout.id);
+  const earningRows = payoutIds.length === 0 ? [] : await database.select().from(payoutEarningLines).where(inArray(payoutEarningLines.payoutId, payoutIds)).orderBy(asc(payoutEarningLines.displayOrder));
   const boundary = payoutRows.at(-1)?.payout;
   return {
     run,
-    payouts: payoutRows,
+    payouts: payoutRows.map((row) => ({ ...row, earnings: earningRows.filter((earning) => earning.payoutId === row.payout.id) })),
     payoutNextCursor: allPayoutRows.length > PAYROLL_PAGE_SIZE && boundary
       ? encodeCursor({ employeeNumber: boundary.employeeNumber, id: boundary.id })
       : null,

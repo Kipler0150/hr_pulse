@@ -6,10 +6,11 @@ import { cn } from "@/lib/utils"
 
 function Table({
   className,
+  containerLabel = "Scrollable table",
   ...props
 }) {
   return (
-    <div data-slot="table-container" className="relative w-full overflow-x-auto">
+    <div aria-label={containerLabel} data-slot="table-container" className="relative w-full overflow-x-auto focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50" role="region" tabIndex={0}>
       <table
         data-slot="table"
         className={cn("w-full caption-bottom text-sm", className)}

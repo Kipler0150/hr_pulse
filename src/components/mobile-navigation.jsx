@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Building2Icon, LandmarkIcon, LayoutDashboardIcon, MenuIcon } from "lucide-react";
+import { Building2Icon, CalendarClockIcon, ClipboardCheckIcon, LandmarkIcon, LayoutDashboardIcon, MenuIcon } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
-export function MobileNavigation({ organizationName, switchOrganization, footer, payroll = false }) {
+export function MobileNavigation({ attendance = null, organizationName, switchOrganization, footer, payroll = false, timecards = null }) {
   return (
     <Sheet>
       <SheetTrigger render={<Button aria-label="Open navigation" size="icon-comfortable" variant="ghost" />}>
@@ -34,6 +34,18 @@ export function MobileNavigation({ organizationName, switchOrganization, footer,
             <Link className={cn(buttonVariants({ size: "comfortable", variant: "ghost" }), "justify-start")} data-slot="navigation-link" href="/payroll">
               <LandmarkIcon data-icon="inline-start" />
               Payroll
+            </Link>
+          ) : null}
+          {attendance ? (
+            <Link className={cn(buttonVariants({ size: "comfortable", variant: "ghost" }), "justify-start")} data-slot="navigation-link" href={attendance}>
+              <CalendarClockIcon data-icon="inline-start" />
+              Attendance
+            </Link>
+          ) : null}
+          {timecards ? (
+            <Link className={cn(buttonVariants({ size: "comfortable", variant: "ghost" }), "justify-start")} data-slot="navigation-link" href={timecards}>
+              <ClipboardCheckIcon data-icon="inline-start" />
+              Timecards
             </Link>
           ) : null}
           {switchOrganization ? (

@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import {
   organizations,
   payoutDeductionLines,
+  payoutEarningLines,
   payouts,
   payrollRunAttempts,
   payrollRuns,
@@ -57,7 +58,9 @@ async function generateBatch(run, payoutRows, eventId) {
     if (row.payslip.status === "generated") continue;
     const deductions = await database.select().from(payoutDeductionLines)
       .where(eq(payoutDeductionLines.payoutId, row.payout.id)).orderBy(asc(payoutDeductionLines.displayOrder));
-    const bytes = await generatePayslipPdf({ run, payout: row.payout, deductions });
+    const earnings = await database.select().from(payoutEarningLines)
+      .where(eq(payoutEarningLines.payoutId, row.payout.id)).orderBy(asc(payoutEarningLines.displayOrder));
+    const bytes = await generatePayslipPdf({ run, payout: row.payout, deductions, earnings });
     const hash = sha256(bytes);
     const path = storagePath(run, row.payout);
     try {

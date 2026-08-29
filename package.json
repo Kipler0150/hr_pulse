@@ -10,6 +10,7 @@
     "test": "vitest run src",
     "test:e2e": "dotenv -e .env.local -- playwright test",
     "verify:payroll:seed": "dotenv -e .env.local -- node scripts/seed-payroll-verification.mjs",
+    "verify:attendance:schema": "node scripts/verify-attendance-schema.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },
@@ -44,6 +45,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.2",
     "jsdom": "^30.0.1",
+    "supabase": "^2.116.0",
     "tailwindcss": "^4",
     "vitest": "^4.1.11"
   }

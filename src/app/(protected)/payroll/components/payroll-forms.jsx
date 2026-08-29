@@ -12,6 +12,7 @@ import {
 } from "@/app/actions/payroll";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldSet, FieldLegend } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -78,22 +79,35 @@ export function EmployeeForm({ employee = null }) {
   );
 }
 
-export function PaySettingForm({ employeeId, currency, frequency }) {
+export function PaySettingForm({ employeeId, currency, frequency, requestId, expectedVersion, overtimeEnabled = false }) {
   const [state, action, pending] = useActionState(savePaySettingAction, emptyState);
+  const [overtimeEligible, setOvertimeEligible] = useState(false);
   return (
     <form action={action} className="flex flex-col gap-5">
       <input name="employeeId" type="hidden" value={employeeId} />
+      <input name="requestId" type="hidden" value={requestId} />
+      <input name="expectedVersion" type="hidden" value={expectedVersion} />
       <FieldGroup>
         <Field><FieldLabel htmlFor="effective-from">Effective from</FieldLabel><Input id="effective-from" name="effectiveFrom" required type="date" /></Field>
         <Field><FieldLabel htmlFor="effective-to">Effective to</FieldLabel><Input id="effective-to" name="effectiveTo" type="date" /><FieldDescription>Leave blank when this setting has no planned end.</FieldDescription></Field>
         <Field><FieldLabel htmlFor="gross-amount">Gross pay per {frequency} period</FieldLabel><Input id="gross-amount" inputMode="decimal" name="grossAmount" placeholder="0.00" required /><FieldDescription>Enter a positive amount in {currency}.</FieldDescription></Field>
+        {overtimeEnabled ? <Field orientation="horizontal">
+          <Checkbox checked={overtimeEligible} id="overtime-eligible" name="overtimeEligible" onCheckedChange={setOvertimeEligible} />
+          <div className="flex flex-col gap-1"><FieldLabel htmlFor="overtime-eligible">Eligible for overtime</FieldLabel><FieldDescription>Payroll will use the approved timecard snapshot for this effective pay setting.</FieldDescription></div>
+        </Field> : null}
+        {overtimeEnabled && overtimeEligible ? (
+          <FieldGroup className="grid gap-4 sm:grid-cols-2">
+            <Field><FieldLabel htmlFor="standard-period-minutes">Standard period minutes</FieldLabel><Input id="standard-period-minutes" inputMode="numeric" min="1" name="standardPeriodMinutes" required type="number" /><FieldDescription>Regular minutes represented by the period gross amount.</FieldDescription></Field>
+            <Field><FieldLabel htmlFor="overtime-multiplier">Overtime multiplier basis points</FieldLabel><Input defaultValue="15000" id="overtime-multiplier" inputMode="numeric" max="50000" min="10000" name="overtimeMultiplierBasisPoints" required type="number" /><FieldDescription>15000 means 1.5 times the derived hourly base.</FieldDescription></Field>
+          </FieldGroup>
+        ) : null}
         <FieldSet>
           <FieldLegend>Recurring fixed deductions</FieldLegend>
           {[0, 1, 2].map((index) => (
-            <div className="grid gap-3 sm:grid-cols-2" key={index}>
+            <FieldGroup className="grid gap-3 sm:grid-cols-2" key={index}>
               <Field><FieldLabel htmlFor={`deduction-name-${index}`}>Deduction {index + 1} name</FieldLabel><Input id={`deduction-name-${index}`} name="deductionName" /></Field>
               <Field><FieldLabel htmlFor={`deduction-amount-${index}`}>Amount</FieldLabel><Input id={`deduction-amount-${index}`} inputMode="decimal" name="deductionAmount" /></Field>
-            </div>
+            </FieldGroup>
           ))}
         </FieldSet>
       </FieldGroup>
@@ -118,7 +132,7 @@ export function PayrollPreview() {
         <Card>
           <CardHeader><CardTitle>{formatPayrollPeriod(preview.period.periodStart, preview.period.periodEnd)}</CardTitle><CardDescription>Review every amount. Confirmation freezes these inputs for all retries.</CardDescription></CardHeader>
           <CardContent className="flex flex-col gap-3">
-            {preview.rows.map((row) => <ResponsiveRecord key={row.employeeId} title={`${row.employeeNumber} · ${row.legalName}`} priorityValues={[{ label: "Gross", value: formatPayrollMoney(row.grossAmountMinor, preview.currency, preview.currencyExponent) }, { label: "Net", value: formatPayrollMoney(row.netAmountMinor, preview.currency, preview.currencyExponent) }]} secondaryValues={[{ label: "Deductions", value: formatPayrollMoney(row.deductionsAmountMinor, preview.currency, preview.currencyExponent) }, { label: "Lines", value: row.deductions.map((line) => line.name).join(", ") || "None" }]} />)}
+            {preview.rows.map((row) => <ResponsiveRecord key={row.employeeId} title={`${row.employeeNumber} · ${row.legalName}`} priorityValues={[{ label: "Gross", value: formatPayrollMoney(row.grossAmountMinor, preview.currency, preview.currencyExponent) }, { label: "Net", value: formatPayrollMoney(row.netAmountMinor, preview.currency, preview.currencyExponent) }]} secondaryValues={[{ label: "Base gross", value: formatPayrollMoney(row.baseGrossAmountMinor, preview.currency, preview.currencyExponent) }, { label: "Overtime", value: `${row.payableOvertimeMinutes} min · ${formatPayrollMoney(row.overtimeAmountMinor, preview.currency, preview.currencyExponent)}${row.overtimeMultiplierBasisPoints ? ` · ${(row.overtimeMultiplierBasisPoints / 10000).toFixed(2)}×` : ""}` }, { label: "Deductions", value: formatPayrollMoney(row.deductionsAmountMinor, preview.currency, preview.currencyExponent) }, { label: "Deduction lines", value: row.deductions.map((line) => line.name).join(", ") || "None" }]} />)}
           </CardContent>
         </Card>
       ) : null}

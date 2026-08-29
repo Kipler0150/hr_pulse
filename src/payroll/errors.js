@@ -39,6 +39,11 @@ export const PAYROLL_ERROR_CATALOG = Object.freeze({
     guidance: "Add a compatible pay setting for the employee and preview again.",
     retryable: false,
   },
+  TIMECARD_APPROVAL_MISSING: {
+    message: "An employee timecard is not approved for this payroll period.",
+    guidance: "Have the employee submit the period and an independent reviewer approve it before previewing payroll.",
+    retryable: false,
+  },
   CURRENCY_MISMATCH: {
     message: "A pay setting uses a different currency.",
     guidance: "Use the organization currency for every eligible employee.",

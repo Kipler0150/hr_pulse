@@ -26,7 +26,7 @@ function Row({ label, value, total = false }) {
     React.createElement(Text, { style: styles.value }, value));
 }
 
-export async function generatePayslipPdf({ run, payout, deductions }) {
+export async function generatePayslipPdf({ run, payout, deductions, earnings = [] }) {
   const document = React.createElement(Document, {
     author: run.organizationName,
     creator: "HR Pulse",
@@ -41,6 +41,12 @@ export async function generatePayslipPdf({ run, payout, deductions }) {
       React.createElement(Row, { label: "Employee number", value: payout.employeeNumber }),
       React.createElement(Row, { label: "Currency", value: payout.currency })),
     React.createElement(View, { style: styles.section },
+      React.createElement(Row, { label: "Base gross pay", value: money(payout.grossAmountMinor - earnings.reduce((total, earning) => total + earning.amountMinor, 0), payout.currency, payout.currencyExponent) }),
+      ...earnings.map((earning) => React.createElement(Row, {
+        key: earning.id,
+        label: `Overtime (${earning.payableMinutes} min${earning.multiplierBasisPoints ? ` at ${(earning.multiplierBasisPoints / 10000).toFixed(2)}x` : ""})`,
+        value: money(earning.amountMinor, payout.currency, payout.currencyExponent),
+      })),
       React.createElement(Row, { label: "Gross pay", value: money(payout.grossAmountMinor, payout.currency, payout.currencyExponent) }),
       ...deductions.map((deduction) => React.createElement(Row, {
         key: deduction.id,
