@@ -13,7 +13,7 @@ import {
   saveOvertimePolicy,
   submitTimecard,
 } from "@/overtime/service";
-import { reportOvertimeFailure } from "@/overtime/telemetry";
+import { recordOvertimeMetric, reportOvertimeFailure } from "@/overtime/telemetry";
 
 function text(formData, key) { return String(formData.get(key) ?? "").trim(); }
 
@@ -31,6 +31,10 @@ function responseError(error, context) {
   return { error: overtimeIssue(safe) };
 }
 
+function responseSuccess(context) {
+  recordOvertimeMetric({ ...context, code: "ok" });
+}
+
 function refreshTimecards(timecardId = null) {
   revalidatePath("/timecards");
   revalidatePath("/timecards/review");
@@ -41,6 +45,7 @@ function refreshTimecards(timecardId = null) {
 
 export async function prepareTimecardAction(previousState, formData) {
   let context;
+  const startedAt = Date.now();
   try {
     context = await requireOvertimeContext();
     const result = await prepareTimecard({
@@ -50,63 +55,74 @@ export async function prepareTimecardAction(previousState, formData) {
       expectedVersion: text(formData, "expectedVersion") ? integer(formData, "expectedVersion", { min: 1, max: Number.MAX_SAFE_INTEGER }) : null,
       requestId: requestId(formData),
     });
+    responseSuccess({ operation: "timecard.prepare", organizationId: context.organizationId, entityId: result.card.id, durationMs: Date.now() - startedAt });
     refreshTimecards(result.card.id);
     return { success: true, timecardId: result.card.id, version: result.card.version, frozen: result.frozen, duplicate: result.duplicate };
-  } catch (error) { return responseError(error, { operation: "timecard.prepare", organizationId: context?.organizationId }); }
+  } catch (error) { return responseError(error, { operation: "timecard.prepare", organizationId: context?.organizationId, durationMs: Date.now() - startedAt }); }
 }
 
 export async function submitTimecardAction(previousState, formData) {
   let context;
   const timecardId = text(formData, "timecardId");
+  const startedAt = Date.now();
   try {
     context = await requireOvertimeContext();
     const result = await submitTimecard({ context, timecardId: validateUuid(timecardId, "timecardId"), expectedVersion: integer(formData, "expectedVersion", { min: 1, max: Number.MAX_SAFE_INTEGER }), zeroHoursConfirmed: formData.get("zeroHoursConfirmed") === "on", requestId: requestId(formData) });
+    responseSuccess({ operation: "timecard.submit", organizationId: context.organizationId, entityId: timecardId, durationMs: Date.now() - startedAt });
     refreshTimecards(timecardId);
     return { success: true, status: result.card.status, version: result.card.version, duplicate: result.duplicate };
-  } catch (error) { return responseError(error, { operation: "timecard.submit", organizationId: context?.organizationId, timecardId }); }
+  } catch (error) { return responseError(error, { operation: "timecard.submit", organizationId: context?.organizationId, timecardId, durationMs: Date.now() - startedAt }); }
 }
 
 export async function returnTimecardAction(previousState, formData) {
   let context;
   const timecardId = text(formData, "timecardId");
+  const startedAt = Date.now();
   try {
     context = await requireOvertimeContext();
     const result = await returnTimecard({ context, timecardId: validateUuid(timecardId, "timecardId"), expectedVersion: integer(formData, "expectedVersion", { min: 1, max: Number.MAX_SAFE_INTEGER }), note: text(formData, "note"), fallbackReason: text(formData, "fallbackReason"), requestId: requestId(formData) });
+    responseSuccess({ operation: "timecard.return", organizationId: context.organizationId, entityId: timecardId, durationMs: Date.now() - startedAt });
     refreshTimecards(timecardId);
     return { success: true, status: result.card.status, version: result.card.version, duplicate: result.duplicate };
-  } catch (error) { return responseError(error, { operation: "timecard.return", organizationId: context?.organizationId, timecardId }); }
+  } catch (error) { return responseError(error, { operation: "timecard.return", organizationId: context?.organizationId, timecardId, durationMs: Date.now() - startedAt }); }
 }
 
 export async function approveTimecardAction(previousState, formData) {
   let context;
   const timecardId = text(formData, "timecardId");
+  const startedAt = Date.now();
   try {
     context = await requireOvertimeContext();
     const result = await approveTimecard({ context, timecardId: validateUuid(timecardId, "timecardId"), expectedVersion: integer(formData, "expectedVersion", { min: 1, max: Number.MAX_SAFE_INTEGER }), fallbackReason: text(formData, "fallbackReason"), requestId: requestId(formData) });
+    responseSuccess({ operation: "timecard.approve", organizationId: context.organizationId, entityId: timecardId, durationMs: Date.now() - startedAt });
     refreshTimecards(timecardId);
     return { success: true, status: result.card.status, version: result.card.version, configurationDrift: result.configurationDrift, duplicate: result.duplicate };
-  } catch (error) { return responseError(error, { operation: "timecard.approve", organizationId: context?.organizationId, timecardId }); }
+  } catch (error) { return responseError(error, { operation: "timecard.approve", organizationId: context?.organizationId, timecardId, durationMs: Date.now() - startedAt }); }
 }
 
 export async function saveOvertimePolicyAction(previousState, formData) {
   let context;
+  const startedAt = Date.now();
   try {
     context = await requireOvertimeAdministrator();
     const result = await saveOvertimePolicy({ context, dailyThresholdMinutes: integer(formData, "dailyThresholdMinutes", { min: 1, max: 1440 }), enabled: formData.get("enabled") === "on", effectiveFrom: validateDate(text(formData, "effectiveFrom"), "effectiveFrom"), expectedVersion: integer(formData, "expectedVersion", { min: 0, max: Number.MAX_SAFE_INTEGER }), requestId: requestId(formData) });
+    responseSuccess({ operation: "overtime_policy.save", organizationId: context.organizationId, entityId: result.policy.id, durationMs: Date.now() - startedAt });
     refreshTimecards();
     return { success: true, policyId: result.policy.id, version: result.policy.version, duplicate: result.duplicate };
-  } catch (error) { return responseError(error, { operation: "overtime_policy.save", organizationId: context?.organizationId }); }
+  } catch (error) { return responseError(error, { operation: "overtime_policy.save", organizationId: context?.organizationId, durationMs: Date.now() - startedAt }); }
 }
 
 export async function correctAttendanceIntervalAction(previousState, formData) {
   let context;
+  const startedAt = Date.now();
   try {
     context = await requireOvertimeAdministrator();
     const correctedClockIn = text(formData, "correctedClockIn");
     const correctedClockOut = text(formData, "correctedClockOut");
     if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?Z$/.test(correctedClockIn) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?Z$/.test(correctedClockOut)) throw new Error("Corrected times must be ISO 8601 UTC instants ending in Z");
     const result = await correctAttendanceInterval({ context, intervalId: validateUuid(text(formData, "intervalId"), "intervalId"), correctedClockIn, correctedClockOut, reason: text(formData, "reason"), expectedCorrectionId: text(formData, "expectedCorrectionId") || null, requestId: requestId(formData) });
+    responseSuccess({ operation: "attendance_interval.correct", organizationId: context.organizationId, entityId: result.correction.id, durationMs: Date.now() - startedAt });
     refreshTimecards();
     return { success: true, correctionId: result.correction.id, affectedTimecardIds: result.affectedTimecardIds, duplicate: result.duplicate };
-  } catch (error) { return responseError(error, { operation: "attendance_interval.correct", organizationId: context?.organizationId }); }
+  } catch (error) { return responseError(error, { operation: "attendance_interval.correct", organizationId: context?.organizationId, durationMs: Date.now() - startedAt }); }
 }

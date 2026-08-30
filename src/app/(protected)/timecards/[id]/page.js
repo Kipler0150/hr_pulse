@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatDateOnly, formatDateRange, formatInstant, formatMoney } from "@/lib/hr-format";
 import { cn } from "@/lib/utils";
 import { requireOvertimeContext } from "@/overtime/access";
+import { OvertimeError } from "@/overtime/errors";
 import { getTimecardDetail } from "@/overtime/service";
 
 export const metadata = { title: "Timecard detail | HR Pulse" };
@@ -22,7 +23,15 @@ function duration(seconds) { const hours = Math.floor(seconds / 3600); const min
 export default async function TimecardDetailPage({ params }) {
   const { id } = await params;
   const context = await requireOvertimeContext();
-  const detail = await getTimecardDetail(context, id);
+  let detail;
+  try {
+    detail = await getTimecardDetail(context, id);
+  } catch (error) {
+    if (error instanceof OvertimeError && error.code === "TIMECARD_NOT_FOUND") {
+      return <div className="flex min-h-80 items-center justify-center"><Alert className="max-w-xl" variant="destructive"><HistoryIcon aria-hidden="true" /><AlertTitle>This timecard could not be found.</AlertTitle><AlertDescription>Return to the timecard list and choose an available period.</AlertDescription></Alert></div>;
+    }
+    throw error;
+  }
   const { card } = detail;
   const employeeCanSubmit = context.membership.role === "employee" && ["draft", "returned"].includes(card.status);
   const reviewerCanAct = ["manager", "administrator"].includes(context.membership.role) && card.status === "submitted";

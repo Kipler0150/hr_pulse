@@ -9,7 +9,9 @@ describe("recovery callback errors", () => {
   });
 
   it("does not expose provider details for unknown callback errors", () => {
-    expect(getRecoveryError("unexpected_provider_error")).toBeNull();
+    expect(getRecoveryError("unexpected_provider_error")).toEqual({
+      error: "This recovery link is invalid or has expired. Request a new link to continue.",
+    });
   });
 
   it("reads a recovery session returned in a URL fragment", () => {

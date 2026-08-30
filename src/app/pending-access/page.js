@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Building2Icon, Clock3Icon, LogOutIcon } from "lucide-react";
 
 import { AuthShell } from "@/app/components/auth-shell";
-import { getAccessState } from "@/auth/access";
+import { canFoundOrganization, getAccessState } from "@/auth/access";
 import { signOut } from "@/auth/actions";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,7 +28,7 @@ export default async function PendingAccessPage() {
           <form action={signOut}>
             <Button className="w-full sm:w-auto" size="comfortable" type="submit"><LogOutIcon data-icon="inline-start" />Sign out</Button>
           </form>
-          {state.profile?.status === "active" && state.memberships.length === 0 ? (
+          {state.profile?.status === "active" && state.memberships.length === 0 && canFoundOrganization(state.user) ? (
             <Link className={cn(buttonVariants({ size: "comfortable", variant: "outline" }), "w-full sm:w-auto")} href="/setup/organization"><Building2Icon data-icon="inline-start" />Create organization</Link>
           ) : null}
           <Link className={cn(buttonVariants({ size: "comfortable", variant: "outline" }), "w-full sm:w-auto")} href="/sign-in">Return to sign in</Link>

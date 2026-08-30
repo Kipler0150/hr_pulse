@@ -14,6 +14,7 @@ import { writeAuditEvent } from "@/lib/audit";
 import { removePayslip, uploadVerifiedPayslip } from "@/lib/storage";
 import { PayrollError, serializePayrollError } from "./errors";
 import { sha256 } from "./fingerprint";
+import { recordPayrollMetric } from "./telemetry";
 
 const LEASE_MS = 5 * 60 * 1000;
 const PAYSLIP_TEMPLATE_VERSION = 1;
@@ -121,6 +122,7 @@ async function finalizeRun(run, attemptId, eventId) {
 export async function processPayrollRun({ runId, organizationId, generation, eventId }) {
   const run = await claimRun({ runId, organizationId, generation, eventId });
   if (!run) return { status: "noop" };
+  const startedAt = Date.now();
   const database = getDb();
   try {
     const rows = await database.select({ payout: payouts, payslip: payslips }).from(payouts)
@@ -130,6 +132,7 @@ export async function processPayrollRun({ runId, organizationId, generation, eve
       await generateBatch(run, rows.slice(index, index + 25), eventId);
     }
     await finalizeRun(run, run.attemptId, eventId);
+    recordPayrollMetric({ operation: "payroll.calculation", organizationId, entityId: run.id, code: "ok", durationMs: Date.now() - startedAt });
     return { status: "completed", payoutCount: rows.length };
   } catch (error) {
     const safe = serializePayrollError(error);
@@ -138,6 +141,7 @@ export async function processPayrollRun({ runId, organizationId, generation, eve
     }).where(eq(payrollRunAttempts.id, run.attemptId));
     await database.update(payrollRuns).set({ leaseOwner: null, leaseExpiresAt: null, errorCode: safe.code, errorGuidance: safe.guidance, updatedAt: new Date() })
       .where(eq(payrollRuns.id, run.id));
+    recordPayrollMetric({ operation: "payroll.calculation", organizationId, entityId: run.id, code: safe.code, durationMs: Date.now() - startedAt });
     Sentry.captureException(error, { tags: { organizationId, runId, attemptId: run.attemptId, code: safe.code } });
     throw error;
   }

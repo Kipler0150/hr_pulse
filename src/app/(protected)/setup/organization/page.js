@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Building2Icon } from "lucide-react";
 import { AuthShell } from "@/app/components/auth-shell";
 import { OrganizationSetupForm } from "@/app/components/organization-setup-form";
-import { getAccessState } from "@/auth/access";
+import { canFoundOrganization, getAccessState } from "@/auth/access";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const metadata = { title: "Create organization | HR Pulse" };
@@ -12,6 +12,7 @@ export default async function OrganizationSetupPage() {
   if (!state.user) redirect("/sign-in?returnTo=%2Fsetup%2Forganization");
   if (!state.profile || state.profile.status !== "active") redirect("/pending-access");
   if (state.memberships.length > 0) redirect("/dashboard");
+  if (!canFoundOrganization(state.user)) redirect("/pending-access");
   return (
     <AuthShell detail="Set the operating calendar once, then add your first employee and review a closed payroll period." eyebrow="Founding administrator" title="Create your payroll workspace.">
       <Card>

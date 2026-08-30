@@ -7,6 +7,7 @@ import { validateCurrency, validateDate, validatePayFrequency, validateTimezone 
 import { getCurrencyExponent } from "@/payroll/currency";
 import { writeAuditEvent } from "@/lib/audit";
 import { createClient } from "@/lib/supabase/server";
+import { canFoundOrganization } from "@/auth/access";
 
 function slugify(value) {
   const slug = value.toLocaleLowerCase("en").trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90);
@@ -38,12 +39,12 @@ export async function createOrganization({ name, timezone, defaultCurrency, freq
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error) throw error;
   if (!user) throw new Error("Authentication required");
+  if (!canFoundOrganization(user)) throw new Error("Organization founding is not available for this account");
 
   const db = getDb();
   return db.transaction(async (transaction) => {
-    const [profile] = await transaction.insert(profiles).values({
-      authUserId: user.id, email: user.email ?? "", displayName: user.user_metadata?.display_name ?? user.email ?? "",
-    }).onConflictDoUpdate({ target: profiles.authUserId, set: { updatedAt: new Date() } }).returning();
+    const [profile] = await transaction.select().from(profiles).where(eq(profiles.authUserId, user.id));
+    if (!profile || profile.status !== "active") throw new Error("An active provisioned profile is required");
     const [existingFounder] = await transaction.select({ id: organizations.id }).from(organizations).where(eq(organizations.foundingProfileId, profile.id));
     const [membershipCount] = await transaction.select({ count: sql`count(*)::int` }).from(memberships).where(eq(memberships.profileId, profile.id));
     if (existingFounder || Number(membershipCount?.count ?? 0) > 0) throw new Error("This profile cannot found another organization");

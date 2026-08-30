@@ -9,7 +9,28 @@ const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const canCreateFixture = Boolean(databaseUrl && supabaseUrl && anonKey && serviceRoleKey);
 
+function formatDate(value) {
+  return value.toISOString().slice(0, 10);
+}
+
+function addDays(value, days) {
+  const date = new Date(`${value}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return formatDate(date);
+}
+
+const todayParts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+const today = `${todayParts.find((part) => part.type === "year").value}-${todayParts.find((part) => part.type === "month").value}-${todayParts.find((part) => part.type === "day").value}`;
+const periodStartDate = new Date(`${addDays(today, -1)}T00:00:00Z`);
+periodStartDate.setUTCDate(periodStartDate.getUTCDate() - ((periodStartDate.getUTCDay() + 6) % 7));
+const periodStart = formatDate(periodStartDate);
+const periodEnd = addDays(periodStart, 6);
+const intervalDate = addDays(periodStart, 1);
+const intervalStart = `${intervalDate}T00:00:00Z`;
+const intervalEnd = `${intervalDate}T10:30:00Z`;
+
 async function signIn(page, account) {
+  await page.waitForLoadState("networkidle");
   await page.context().clearCookies();
   await page.goto("/sign-in");
   await page.getByLabel("Work email").fill(account.email);
@@ -18,6 +39,7 @@ async function signIn(page, account) {
     page.waitForURL(/\/dashboard/, { timeout: 20_000 }),
     page.getByRole("button", { name: "Sign in" }).click(),
   ]);
+  await page.waitForLoadState("networkidle");
 }
 
 async function expectNoOverflow(page) {
@@ -76,11 +98,11 @@ test.describe("overtime and timecards enabled workflow", () => {
     `;
     await sql`
       insert into payroll_schedules (organization_id, frequency, anchor_start_date, effective_start_date, version)
-      values (${organization.id}, 'weekly', '2026-08-17', '2026-08-17', 1)
+      values (${organization.id}, 'weekly', ${periodStart}, ${periodStart}, 1)
     `;
     const [interval] = await sql`
       insert into attendance_intervals (employee_id, clock_in, clock_out, source, status)
-      values (${employee.id}, '2026-08-18T00:00:00Z', '2026-08-18T10:30:00Z', 'employee', 'completed')
+      values (${employee.id}, ${intervalStart}, ${intervalEnd}, 'employee', 'completed')
       returning id
     `;
 
@@ -155,12 +177,38 @@ test.describe("overtime and timecards enabled workflow", () => {
     await signIn(page, fixture.accounts.administrator);
     await page.goto("/timecards/admin");
     await expect(page.getByRole("heading", { level: 1, name: "Set rules and preserve corrections" })).toBeVisible();
-    await page.getByLabel("Effective payroll period start").fill("2026-08-17");
-    await page.getByRole("button", { name: "Save new policy version" }).click();
+    await page.getByLabel("Effective payroll period start").fill(periodStart);
+    const policySubmit = page.getByRole("button", { name: "Save new policy version" });
+    await policySubmit.click();
     await expect(page.getByText("Overtime policy saved")).toBeVisible();
+    await expect(policySubmit).toBeEnabled();
 
     await page.goto(`/payroll/employees/${fixture.employeeId}`);
-    await page.getByLabel("Effective from").fill("2026-08-17");
+    await page.getByLabel("Effective from").fill(periodStart);
+    await page.getByLabel(/Gross pay per weekly period/).fill("1000.00");
+    await page.getByRole("checkbox", { name: "Eligible for overtime" }).click();
+    await page.getByLabel("Standard period minutes").fill("2400");
+    await page.locator('input[name="payFrequency"]').evaluate((input) => { input.value = "biweekly"; });
+    let paySubmit = page.getByRole("button", { name: "Add effective pay setting" });
+    await paySubmit.click();
+    await expect(page.locator('[data-slot="alert"][role="alert"]')).toContainText("Pay frequency must match the payroll schedule");
+    await expect(paySubmit).toBeEnabled();
+    expect(await sql`select id from pay_settings where employee_id = ${fixture.employeeId}`).toEqual([]);
+
+    await page.goto(`/payroll/employees/${fixture.employeeId}`);
+    await page.getByLabel("Effective from").fill(periodStart);
+    await page.getByLabel(/Gross pay per weekly period/).fill("1000.00");
+    await page.getByRole("checkbox", { name: "Eligible for overtime" }).click();
+    await page.getByLabel("Standard period minutes").fill("2400");
+    await page.getByLabel("Effective to").fill(addDays(periodStart, 3));
+    paySubmit = page.getByRole("button", { name: "Add effective pay setting" });
+    await paySubmit.click();
+    await expect(page.locator('[data-slot="alert"][role="alert"]')).toContainText("Pay settings must start and end on payroll period boundaries");
+    await expect(paySubmit).toBeEnabled();
+    expect(await sql`select id from pay_settings where employee_id = ${fixture.employeeId}`).toEqual([]);
+
+    await page.goto(`/payroll/employees/${fixture.employeeId}`);
+    await page.getByLabel("Effective from").fill(periodStart);
     await page.getByLabel(/Gross pay per weekly period/).fill("1000.00");
     await page.getByRole("checkbox", { name: "Eligible for overtime" }).click();
     await page.getByLabel("Standard period minutes").fill("2400");
@@ -193,9 +241,16 @@ test.describe("overtime and timecards enabled workflow", () => {
     });
     expect(await sql`select count(*)::int as count from timecard_days where timecard_id = ${timecardId}`).toEqual([{ count: 7 }]);
 
+    // A random identity must stay inside the timecard-not-found error boundary
+    // instead of leaking a server action/stream failure to the browser.
+    await page.goto(`/timecards/${crypto.randomUUID()}`);
+    await expect(page.locator('[data-slot="alert"][role="alert"]')).toContainText("This timecard could not be found.");
+    await expect(page.getByText("Return to the timecard list and choose an available period.")).toBeVisible();
+    await page.goto(`/timecards/${timecardId}`);
+
+    // Viewport changes reflow CSS without reloading the streamed server response.
     for (const width of [360, 768, 1280]) {
       await page.setViewportSize({ width, height: 900 });
-      await page.reload();
       await expectNoOverflow(page);
       await expectNoSeriousAxeFindings(page);
     }
@@ -203,7 +258,7 @@ test.describe("overtime and timecards enabled workflow", () => {
     await expect(page.getByText("Timecard submitted")).toBeVisible();
 
     await signIn(page, fixture.accounts.manager);
-    await page.goto("/timecards/review?status=submitted&periodStart=2026-08-17&periodEnd=2026-08-23");
+    await page.goto(`/timecards/review?status=submitted&periodStart=${periodStart}&periodEnd=${periodEnd}`);
     await expect(page.getByText(/OT-001/)).toBeVisible();
     await page.getByRole("link", { name: "Review" }).click();
     await page.getByLabel("Return note").fill("Please ask payroll to correct the end time.");
@@ -218,8 +273,8 @@ test.describe("overtime and timecards enabled workflow", () => {
     await signIn(page, fixture.accounts.administrator);
     await page.goto("/timecards/admin");
     await page.getByLabel("Completed interval ID").fill(fixture.intervalId);
-    await page.getByLabel("Corrected clock in UTC").fill("2026-08-18T00:00:00Z");
-    await page.getByLabel("Corrected clock out UTC").fill("2026-08-18T11:00:00Z");
+    await page.getByLabel("Corrected clock in UTC").fill(`${intervalDate}T00:00:00Z`);
+    await page.getByLabel("Corrected clock out UTC").fill(`${intervalDate}T11:00:00Z`);
     await page.getByLabel("Correction reason").fill("Verified end time from supervisor record");
     await page.getByRole("button", { name: "Append correction" }).click();
     await expect(page.getByText("Attendance correction appended")).toBeVisible();
@@ -298,7 +353,7 @@ test.describe("overtime and timecards enabled workflow", () => {
 
     const [audit] = await sql`
       select count(*)::int as count,
-        bool_and(metadata::text not like '%2026-08-18T%') as excludes_raw_times,
+        bool_and(metadata::text not like ${`%${intervalDate}T%`}) as excludes_raw_times,
         bool_and(metadata::text not like '%11250%') as excludes_pay_amount
       from audit_events where organization_id = ${fixture.organizationId}
     `;

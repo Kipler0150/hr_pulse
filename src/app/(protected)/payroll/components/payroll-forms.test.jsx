@@ -53,6 +53,7 @@ describe("payroll forms", () => {
     const user = userEvent.setup();
     const { container } = render(<PaySettingForm currency="PHP" employeeId="employee-id" expectedVersion={3} frequency="semimonthly" overtimeEnabled requestId="request-id" />);
 
+    expect(container.querySelector('input[name="payFrequency"]')).toHaveValue("semimonthly");
     expect(container.querySelector('input[name="requestId"]')).toHaveValue("request-id");
     expect(container.querySelector('input[name="expectedVersion"]')).toHaveValue("3");
     expect(screen.queryByLabelText("Standard period minutes")).not.toBeInTheDocument();

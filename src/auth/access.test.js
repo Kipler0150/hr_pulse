@@ -6,7 +6,7 @@ vi.mock("@/db", () => ({ getDb: vi.fn() }));
 import { safeReturnTo } from "./access";
 import { createClient } from "@/lib/supabase/server";
 import { getDb } from "@/db";
-import { getAccessState, getCurrentUser, requireOrganizationAccess } from "./access";
+import { canFoundOrganization, getAccessState, getCurrentUser, requireOrganizationAccess } from "./access";
 
 describe("authentication access helpers", () => {
   beforeEach(() => {
@@ -17,6 +17,14 @@ describe("authentication access helpers", () => {
     expect(safeReturnTo("/dashboard?tab=attendance")).toBe("/dashboard?tab=attendance");
     expect(safeReturnTo("https://example.com")).toBe("/dashboard");
     expect(safeReturnTo("//example.com")).toBe("/dashboard");
+    expect(safeReturnTo("/\\\\example.com")).toBe("/dashboard");
+    expect(safeReturnTo("/%5C%5Cexample.com")).toBe("/dashboard");
+  });
+
+  it("requires a trusted bootstrap entitlement to found an organization", () => {
+    expect(canFoundOrganization({ app_metadata: { organization_bootstrap: true } })).toBe(true);
+    expect(canFoundOrganization({ app_metadata: { organization_bootstrap: false } })).toBe(false);
+    expect(canFoundOrganization({})).toBe(false);
   });
 
   it("treats a missing Supabase session as signed out", async () => {

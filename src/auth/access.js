@@ -4,10 +4,22 @@ import { employees, memberships, organizations, profiles } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
 
 export function safeReturnTo(value) {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
+  if (typeof value !== "string" || value.length > 2048 || /[\\\u0000-\u001f\u007f]/.test(value)) {
     return "/dashboard";
   }
-  return value;
+  try {
+    const decoded = decodeURIComponent(value);
+    if (/[\\\u0000-\u001f\u007f]/.test(decoded)) return "/dashboard";
+    const parsed = new URL(value, "http://hr-pulse.local");
+    if (parsed.origin !== "http://hr-pulse.local" || !parsed.pathname.startsWith("/")) return "/dashboard";
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return "/dashboard";
+  }
+}
+
+export function canFoundOrganization(user) {
+  return user?.app_metadata?.organization_bootstrap === true;
 }
 
 export async function getCurrentUser() {
@@ -52,7 +64,7 @@ export async function getAccessState({ organizationId } = {}) {
   }));
   const selected = organizationId
     ? availableMemberships.find((membership) => membership.organizationId === organizationId) ?? null
-    : null;
+    : availableMemberships.length === 1 ? availableMemberships[0] : null;
 
   return { supabase, user, profile, memberships: availableMemberships, selected };
 }

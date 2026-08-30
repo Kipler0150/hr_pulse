@@ -52,3 +52,4 @@ yarn-error.log*
 /.playwright-cli/
 /test-results/
 /test-preferences.json
+/.check-scratch/

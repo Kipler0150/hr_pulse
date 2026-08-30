@@ -68,7 +68,9 @@ export async function getAttendanceAccessState() {
 
     const selected = organizationId
       ? memberships.find((membership) => membership.organizationId === organizationId) ?? null
-      : null;
+      : memberships.length === 1
+        ? memberships[0]
+        : null;
 
     return {
       supabase,

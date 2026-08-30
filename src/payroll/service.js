@@ -20,12 +20,13 @@ import { writeAuditEvent } from "@/lib/audit";
 import { calculatePayout, calculateRunTotals, PAYROLL_CALCULATION_VERSION } from "./calculator";
 import { assertPayrollEnabled, assertPayslipConfiguration } from "./config";
 import { CURRENCY_MAP_VERSION, getCurrencyExponent, isSupportedCurrency } from "./currency";
-import { PayrollError, payrollIssue } from "./errors";
+import { PayrollError, payrollIssue, serializePayrollError } from "./errors";
 import { createPreviewToken, createSourceFingerprint, hashPreviewToken } from "./fingerprint";
 import { getNextPeriod, getOrganizationLocalDate, isClosedPeriod } from "./periods";
 import { decodeCursor, decodeTimestampCursor, encodeCursor, encodeTimestampCursor, PAYROLL_PAGE_SIZE } from "./pagination";
 import { isOvertimeEnabled } from "@/overtime/config";
 import { getApprovedTimecardsForPayroll, insertPayoutEarningLine, overtimeFingerprintRows, writePayrollTimecardAudit } from "@/overtime/service";
+import { recordPayrollMetric } from "./telemetry";
 
 const PREVIEW_LIFETIME_MS = 30 * 60 * 1000;
 const DELAYED_AFTER_MS = 30 * 60 * 1000;
@@ -193,34 +194,64 @@ async function loadPreview(database, organizationId) {
   return { organization, schedule, period, rows, issues, fingerprint: createSourceFingerprint(source) };
 }
 
-export async function previewPayroll({ organizationId, actorProfileId, persistToken = true, database = getDb() }) {
-  assertPayrollEnabled();
-  assertPayslipConfiguration();
-  const preview = await loadPreview(database, organizationId);
-  const totals = calculateRunTotals(preview.rows);
-  if (preview.issues.length > 0 || !persistToken) return { ...preview, totals, token: null, expiresAt: null };
+export async function previewPayroll({ organizationId, actorProfileId, persistToken = true, database = getDb(), recordBlockedTelemetry = true }) {
+  const startedAt = Date.now();
+  try {
+    assertPayrollEnabled();
+    assertPayslipConfiguration();
+    const preview = await loadPreview(database, organizationId);
+    const totals = calculateRunTotals(preview.rows);
+    if (preview.issues.length > 0 && recordBlockedTelemetry) {
+      const issueCodes = [...new Set(preview.issues.map((issue) => issue.code))];
+      const durationMs = Math.max(0, Date.now() - startedAt);
+      await writeAuditEvent(database, {
+        organizationId,
+        actorProfileId,
+        action: "payroll.preview.blocked",
+        entityType: "payroll_preview",
+        entityId: organizationId,
+        metadata: {
+          reasonCodes: issueCodes,
+          issueCount: preview.issues.length,
+          durationMs,
+        },
+      });
+      for (const code of issueCodes) {
+        recordPayrollMetric({ operation: "payroll.preview.blocked", organizationId, entityId: organizationId, code, durationMs });
+      }
+    }
+    if (preview.issues.length > 0 || !persistToken) return { ...preview, totals, token: null, expiresAt: null };
 
-  const { token, tokenHash } = createPreviewToken();
-  const expiresAt = new Date(Date.now() + PREVIEW_LIFETIME_MS);
-  await database.insert(payrollPreviewTokens).values({
-    organizationId,
-    actorProfileId,
-    periodStart: preview.period.periodStart,
-    periodEnd: preview.period.periodEnd,
-    fingerprint: preview.fingerprint,
-    calculationVersion: PAYROLL_CALCULATION_VERSION,
-    tokenHash,
-    expiresAt,
-  });
-  return { ...preview, totals, token, expiresAt };
+    const { token, tokenHash } = createPreviewToken();
+    const expiresAt = new Date(Date.now() + PREVIEW_LIFETIME_MS);
+    await database.insert(payrollPreviewTokens).values({
+      organizationId,
+      actorProfileId,
+      periodStart: preview.period.periodStart,
+      periodEnd: preview.period.periodEnd,
+      fingerprint: preview.fingerprint,
+      calculationVersion: PAYROLL_CALCULATION_VERSION,
+      tokenHash,
+      expiresAt,
+    });
+    return { ...preview, totals, token, expiresAt };
+  } catch (error) {
+    if (recordBlockedTelemetry) {
+      const safe = serializePayrollError(error);
+      recordPayrollMetric({ operation: "payroll.preview.blocked", organizationId, entityId: organizationId, code: safe.code, durationMs: Date.now() - startedAt });
+    }
+    throw error;
+  }
 }
 
 export async function confirmPayroll({ organizationId, actorProfileId, token }) {
-  assertPayrollEnabled();
-  assertPayslipConfiguration();
-  const database = getDb();
-  const tokenHash = hashPreviewToken(token);
-  const result = await database.transaction(async (transaction) => {
+  const startedAt = Date.now();
+  try {
+    assertPayrollEnabled();
+    assertPayslipConfiguration();
+    const database = getDb();
+    const tokenHash = hashPreviewToken(token);
+    const result = await database.transaction(async (transaction) => {
     const [existingByToken] = await transaction.select().from(payrollRuns)
       .where(and(eq(payrollRuns.organizationId, organizationId), eq(payrollRuns.previewTokenHash, tokenHash)));
     if (existingByToken) return { run: existingByToken, duplicate: true };
@@ -308,8 +339,26 @@ export async function confirmPayroll({ organizationId, actorProfileId, token }) 
     });
     if (isOvertimeEnabled()) await writePayrollTimecardAudit(transaction, organizationId, actorProfileId, run.id, preview.rows.map((row) => row.timecard));
     return { run, duplicate: false };
-  });
-  return result;
+    });
+    recordPayrollMetric({
+      operation: "payroll.confirm",
+      organizationId,
+      entityId: result.run?.id ?? organizationId,
+      code: "ok",
+      durationMs: Date.now() - startedAt,
+    });
+    return result;
+  } catch (error) {
+    const safe = serializePayrollError(error);
+    recordPayrollMetric({
+      operation: "payroll.confirm",
+      organizationId,
+      entityId: organizationId,
+      code: safe.code,
+      durationMs: Date.now() - startedAt,
+    });
+    throw error;
+  }
 }
 
 export async function getSetupChecklist(organizationId, actorProfileId) {
@@ -322,7 +371,7 @@ export async function getSetupChecklist(organizationId, actorProfileId) {
     eq(payrollRuns.organizationId, organizationId), eq(payrollRuns.status, "completed"),
   ));
   let readiness = { rows: [], issues: [payrollIssue("NO_ELIGIBLE_EMPLOYEES")] };
-  try { readiness = await previewPayroll({ organizationId, actorProfileId, persistToken: false, database }); } catch {}
+  try { readiness = await previewPayroll({ organizationId, actorProfileId, persistToken: false, database, recordBlockedTelemetry: false }); } catch {}
   return {
     schedule: Boolean(schedule),
     administratorAccess: Number(adminCount?.count ?? 0) > 0,

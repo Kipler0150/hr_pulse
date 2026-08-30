@@ -1,5 +1,9 @@
+import { randomUUID } from "node:crypto";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getTableName } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 
 const mocks = vi.hoisted(() => ({
   getDb: vi.fn(),
@@ -21,7 +25,7 @@ vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("@/payroll/service", () => ({ confirmPayroll: mocks.confirmPayroll, getPayrollRun: mocks.getPayrollRun, previewPayroll: mocks.previewPayroll }));
 vi.mock("@/payroll/queue", () => ({ submitPayrollRun: mocks.submitPayrollRun }));
 
-import { confirmPayrollAction, deactivateEmployeeAction } from "./payroll";
+import { confirmPayrollAction, deactivateEmployeeAction, savePaySettingAction } from "./payroll";
 
 const organizationId = "123e4567-e89b-12d3-a456-426614174000";
 const profileId = "123e4567-e89b-12d3-a456-426614174001";
@@ -58,11 +62,125 @@ function stateTransitionDatabase(run) {
   return { transaction: (callback) => callback(transaction), updates };
 }
 
+function paySettingValidationDatabase({ organization, schedule }) {
+  return {
+    select: vi.fn()
+      .mockImplementationOnce(() => ({ from: () => ({ where: () => Promise.resolve([organization]) }) }))
+      .mockImplementationOnce(() => ({ from: () => ({ where: () => Promise.resolve([schedule]) }) })),
+    transaction: vi.fn(),
+  };
+}
+
+function paySettingForm(overrides = {}) {
+  const formData = new FormData();
+  formData.set("employeeId", employeeId);
+  formData.set("requestId", "123e4567-e89b-12d3-a456-426614174003");
+  formData.set("expectedVersion", "0");
+  formData.set("payFrequency", "monthly");
+  formData.set("effectiveFrom", "2026-08-01");
+  formData.set("grossAmount", "1000.00");
+  for (const [key, value] of Object.entries(overrides)) formData.set(key, value);
+  return formData;
+}
+
 describe("payroll server actions", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.useRealTimers();
     mocks.requirePayrollAdministrator.mockResolvedValue({ organizationId, profile: { id: profileId } });
+  });
+
+  it.skipIf(process.env.HR_PULSE_OVERTIME_INTEGRATION !== "true" || !process.env.DATABASE_URL)("replays one pay setting request without another setting or receipt, covers: AC-6", async () => {
+    const sql = postgres(process.env.DATABASE_URL, { max: 1 });
+    const nonce = randomUUID();
+    let organizationId;
+    let profileId;
+    let employeeId;
+    try {
+      const [organization] = await sql`
+        insert into organizations (name, slug, timezone, default_currency)
+        values (${`Pay replay ${nonce}`}, ${`overtime-verify-pay-replay-${nonce}`}, 'Asia/Manila', 'PHP')
+        returning id
+      `;
+      organizationId = organization.id;
+      const [profile] = await sql`
+        insert into profiles (auth_user_id, email, display_name)
+        values (${randomUUID()}, ${`pay-replay-${nonce}@example.test`}, 'Pay Replay Administrator')
+        returning id
+      `;
+      profileId = profile.id;
+      await sql`insert into memberships (organization_id, profile_id, role, status) values (${organizationId}, ${profileId}, 'administrator', 'active')`;
+      const [employee] = await sql`
+        insert into employees (organization_id, employee_number, legal_name, email, hire_date, status)
+        values (${organizationId}, 'PAY-REPLAY-001', 'Pay Replay Employee', ${`pay-replay-employee-${nonce}@example.test`}, '2026-01-01', 'active')
+        returning id
+      `;
+      employeeId = employee.id;
+      await sql`
+        insert into payroll_schedules (organization_id, frequency, anchor_start_date, effective_start_date, version)
+        values (${organizationId}, 'weekly', '2026-08-17', '2026-08-17', 1)
+      `;
+
+      mocks.getDb.mockReturnValue(drizzle(sql));
+      mocks.requirePayrollAdministrator.mockResolvedValue({ organizationId, profile: { id: profileId } });
+      const requestId = randomUUID();
+      const createForm = (grossAmount) => {
+        const formData = new FormData();
+        formData.set("employeeId", employeeId);
+        formData.set("requestId", requestId);
+        formData.set("expectedVersion", "0");
+        formData.set("payFrequency", "weekly");
+        formData.set("effectiveFrom", "2026-08-17");
+        formData.set("grossAmount", grossAmount);
+        formData.set("overtimeEligible", "on");
+        formData.set("standardPeriodMinutes", "2400");
+        formData.set("overtimeMultiplierBasisPoints", "15000");
+        return formData;
+      };
+
+      const first = await savePaySettingAction(null, createForm("1000.00"));
+      expect(first).toMatchObject({ success: true });
+      const duplicate = await savePaySettingAction(null, createForm("1000.00"));
+      expect(duplicate).toEqual(first);
+      const [stableCounts] = await sql`
+        select
+          (select count(*)::int from pay_settings where employee_id = ${employeeId}) as settings,
+          (select count(*)::int from mutation_receipts where organization_id = ${organizationId} and operation = 'pay_setting.save') as receipts
+      `;
+      expect(stableCounts).toEqual({ settings: 1, receipts: 1 });
+
+      const changed = await savePaySettingAction(null, createForm("1000.01"));
+      expect(changed).toMatchObject({
+        error: {
+          code: "REQUEST_FAILED",
+          message: "This request identifier was already used for different pay setting data",
+        },
+      });
+      const [rejectedCounts] = await sql`
+        select
+          (select count(*)::int from pay_settings where employee_id = ${employeeId}) as settings,
+          (select count(*)::int from mutation_receipts where organization_id = ${organizationId} and operation = 'pay_setting.save') as receipts
+      `;
+      expect(rejectedCounts).toEqual(stableCounts);
+    } finally {
+      if (organizationId) {
+        for (const table of ["mutation_receipts", "audit_events", "pay_settings", "memberships"]) await sql.unsafe(`alter table ${table} disable trigger user`);
+        try {
+          await sql`delete from mutation_receipts where organization_id = ${organizationId}`;
+          await sql`delete from audit_events where organization_id = ${organizationId}`;
+          await sql`delete from pay_setting_deductions where pay_setting_id in (select id from pay_settings where employee_id = ${employeeId})`;
+          await sql`delete from pay_settings where employee_id = ${employeeId}`;
+          await sql`delete from employees where organization_id = ${organizationId}`;
+          await sql`delete from payroll_schedules where organization_id = ${organizationId}`;
+          await sql`delete from memberships where organization_id = ${organizationId}`;
+          await sql`delete from profiles where id = ${profileId}`;
+          await sql`delete from organizations where id = ${organizationId}`;
+        } finally {
+          for (const table of ["mutation_receipts", "audit_events", "pay_settings", "memberships"]) await sql.unsafe(`alter table ${table} enable trigger user`);
+        }
+      }
+      await sql.end();
+    }
   });
 
   it("deactivates one active organization employee, audits it, and refreshes every affected screen, covers: AC-2, AC-9, and AC-10", async () => {
@@ -171,6 +289,32 @@ describe("payroll server actions", () => {
 
     await expect((await import("./payroll")).recoverPayrollAction(formData)).rejects.toThrow("not eligible for recovery");
     expect(database.updates).toHaveLength(0);
+  });
+
+  it("rejects a pay setting whose submitted frequency differs from the organization schedule", async () => {
+    const database = paySettingValidationDatabase({
+      organization: { id: organizationId, defaultCurrency: "USD", timezone: "UTC" },
+      schedule: { frequency: "monthly" },
+    });
+    mocks.getDb.mockReturnValue(database);
+
+    const result = await savePaySettingAction(null, paySettingForm({ payFrequency: "weekly" }));
+
+    expect(result).toMatchObject({ error: { code: "REQUEST_FAILED", message: "Pay frequency must match the payroll schedule" } });
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects a pay setting that starts away from a payroll period boundary", async () => {
+    const database = paySettingValidationDatabase({
+      organization: { id: organizationId, defaultCurrency: "USD", timezone: "UTC" },
+      schedule: { frequency: "monthly" },
+    });
+    mocks.getDb.mockReturnValue(database);
+
+    const result = await savePaySettingAction(null, paySettingForm({ effectiveFrom: "2026-08-02" }));
+
+    expect(result).toMatchObject({ error: { code: "REQUEST_FAILED", message: "Pay settings must start and end on payroll period boundaries" } });
+    expect(database.transaction).not.toHaveBeenCalled();
   });
 
   it("retries one failed frozen generation and submits the next deterministic generation, covers: AC-8 and AC-11", async () => {

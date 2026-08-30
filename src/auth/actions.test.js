@@ -75,12 +75,21 @@ describe("authentication actions", () => {
   });
 
   it("clears the organization cookie when signing out", async () => {
-    const cookieStore = { set: vi.fn(), delete: vi.fn() };
+    const cookieStore = { set: vi.fn(), delete: vi.fn(), getAll: vi.fn(() => []) };
     cookies.mockResolvedValue(cookieStore);
     createClient.mockResolvedValue({ auth: { signOut: vi.fn().mockResolvedValue({ error: null }) } });
 
     await expect(signOut()).rejects.toMatchObject({ digest: "NEXT_REDIRECT;/sign-in" });
     expect(cookieStore.delete).toHaveBeenCalledWith("hr_pulse_organization_id");
+  });
+
+  it("clears auth cookies and redirects when Supabase sign out fails", async () => {
+    const cookieStore = { getAll: vi.fn(() => [{ name: "sb-project-auth-token" }]), set: vi.fn(), delete: vi.fn() };
+    cookies.mockResolvedValue(cookieStore);
+    createClient.mockResolvedValue({ auth: { signOut: vi.fn().mockResolvedValue({ error: new Error("provider failure") }) } });
+
+    await expect(signOut()).rejects.toMatchObject({ digest: "NEXT_REDIRECT;/sign-in" });
+    expect(cookieStore.delete).toHaveBeenCalledWith("sb-project-auth-token");
   });
 
   it("rejects organization choices outside the current memberships", async () => {

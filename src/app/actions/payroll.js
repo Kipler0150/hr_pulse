@@ -135,10 +135,17 @@ export async function savePaySettingAction(previousState, formData) {
     const database = getDb();
     const [organization] = await database.select().from(organizations).where(eq(organizations.id, context.organizationId));
     const [schedule] = await database.select().from(payrollSchedules).where(eq(payrollSchedules.organizationId, context.organizationId));
+    const submittedPayFrequency = text(formData, "payFrequency");
+    if (submittedPayFrequency && submittedPayFrequency !== schedule.frequency) throw new Error("Pay frequency must match the payroll schedule");
     const effectiveFrom = validateDate(text(formData, "effectiveFrom"), "effectiveFrom");
     const effectiveToValue = text(formData, "effectiveTo");
     const effectiveTo = effectiveToValue ? validateDate(effectiveToValue, "effectiveTo") : null;
     if (effectiveTo && effectiveTo < effectiveFrom) throw new Error("Effective end must be on or after effective start");
+    const effectiveStartPeriod = getPeriodContaining(schedule, effectiveFrom);
+    const effectiveEndPeriod = effectiveTo ? getPeriodContaining(schedule, effectiveTo) : null;
+    if (effectiveStartPeriod.periodStart !== effectiveFrom || (effectiveEndPeriod && effectiveEndPeriod.periodEnd !== effectiveTo)) {
+      throw new Error("Pay settings must start and end on payroll period boundaries");
+    }
     const grossAmountMinor = parseMajorAmount(text(formData, "grossAmount"), organization.defaultCurrency, "Gross pay");
     const overtimeEligible = isOvertimeEnabled() && formData.get("overtimeEligible") === "on";
     const standardPeriodMinutes = overtimeEligible ? Number(text(formData, "standardPeriodMinutes")) : null;
@@ -186,11 +193,10 @@ export async function savePaySettingAction(previousState, formData) {
       if (!employee) throw new Error("Employee not found");
       const [latest] = await transaction.select().from(paySettings).where(eq(paySettings.employeeId, employeeId)).orderBy(desc(paySettings.version)).limit(1);
       if ((latest?.version ?? 0) !== expectedVersion) throw new Error("This employee pay history changed. Refresh and try again");
-      const period = getPeriodContaining(schedule, effectiveFrom);
       const [duration] = await transaction.execute(sql`
         SELECT floor(extract(epoch from (
-          ((${period.periodEnd}::date + 1)::timestamp AT TIME ZONE ${organization.timezone})
-          - (${period.periodStart}::date::timestamp AT TIME ZONE ${organization.timezone})
+          ((${effectiveStartPeriod.periodEnd}::date + 1)::timestamp AT TIME ZONE ${organization.timezone})
+          - (${effectiveStartPeriod.periodStart}::date::timestamp AT TIME ZONE ${organization.timezone})
         )) / 60)::integer AS actual_minutes
       `);
       if (overtimeEligible && standardPeriodMinutes > Number(duration.actual_minutes)) {

@@ -273,16 +273,20 @@ export async function prepareTimecard({ context, employeeId, period, expectedVer
     const employee = await loadAuthorizedEmployee(transaction, context, employeeId);
     const [schedule] = await transaction.select().from(payrollSchedules).where(eq(payrollSchedules.organizationId, context.organizationId));
     if (!schedule) throw new OvertimeError("TIMECARD_MISSING_PAY");
-    const snapshot = await buildSnapshot(transaction, context, employee, schedule, period);
     let [card] = await transaction.select().from(timecards).where(and(
       eq(timecards.organizationId, context.organizationId), eq(timecards.employeeId, employee.id), eq(timecards.payrollScheduleId, schedule.id),
       eq(timecards.periodStart, period.periodStart), eq(timecards.periodEnd, period.periodEnd),
     ));
+    if (card) {
+      await transaction.execute(sql`SELECT id FROM timecards WHERE id = ${card.id} FOR UPDATE`);
+      [card] = await transaction.select().from(timecards).where(eq(timecards.id, card.id));
+    }
     if (card && ["submitted", "approved"].includes(card.status)) {
       await addReceipt(transaction, { context, operation, requestId, payloadHash, entityType: "timecard", entityId: card.id, version: card.version });
       return { card, duplicate: false, frozen: true };
     }
     if (card && expectedVersion !== null) assertExpectedVersion(card, expectedVersion);
+    const snapshot = await buildSnapshot(transaction, context, employee, schedule, period);
     const values = snapshotValues(context, employee, schedule, period, snapshot);
     const wasCreated = !card;
     if (card) {
@@ -418,6 +422,7 @@ export async function correctAttendanceInterval({ context, intervalId, corrected
   return getDb().transaction(async (transaction) => {
     const duplicate = await existingReceipt(transaction, { organizationId: context.organizationId, operation, requestId, payloadHash });
     if (duplicate) return duplicate;
+    await lockOrganization(transaction, context.organizationId);
     await transaction.execute(sql`SELECT id FROM attendance_intervals WHERE id = ${intervalId} FOR UPDATE`);
     const [interval] = await transaction.select({ interval: attendanceIntervals, employee: employees }).from(attendanceIntervals)
       .innerJoin(employees, and(eq(employees.id, attendanceIntervals.employeeId), eq(employees.organizationId, context.organizationId)))
@@ -460,11 +465,14 @@ export async function correctAttendanceInterval({ context, intervalId, corrected
       gte(timecards.periodEnd, firstDate),
     ));
     for (const affectedCard of affected) {
+      await transaction.execute(sql`SELECT id FROM timecards WHERE id = ${affectedCard.id} FOR UPDATE`);
+      const [lockedCard] = await transaction.select().from(timecards).where(eq(timecards.id, affectedCard.id));
+      if (!lockedCard || !["draft", "returned"].includes(lockedCard.status)) throw new OvertimeError("TIMECARD_CORRECTION_BLOCKED");
       const [schedule] = await transaction.select().from(payrollSchedules).where(eq(payrollSchedules.id, affectedCard.payrollScheduleId));
       const snapshot = await buildSnapshot(transaction, context, interval.employee, schedule, { periodStart: affectedCard.periodStart, periodEnd: affectedCard.periodEnd });
       const [updatedCard] = await transaction.update(timecards).set({ ...snapshotValues(context, interval.employee, schedule, { periodStart: affectedCard.periodStart, periodEnd: affectedCard.periodEnd }, snapshot), version: sql`${timecards.version} + 1` }).where(eq(timecards.id, affectedCard.id)).returning();
       await replaceEvidence(transaction, updatedCard, snapshot);
-      await transaction.insert(timecardEvents).values({ organizationId: context.organizationId, timecardId: affectedCard.id, action: "prepared", actorProfileId: context.profile.id, priorStatus: affectedCard.status, resultingStatus: affectedCard.status, reasonCode: "ATTENDANCE_CORRECTION" });
+      await transaction.insert(timecardEvents).values({ organizationId: context.organizationId, timecardId: affectedCard.id, action: "prepared", actorProfileId: context.profile.id, priorStatus: lockedCard.status, resultingStatus: lockedCard.status, reasonCode: "ATTENDANCE_CORRECTION" });
     }
     const correctionRows = await transaction.select({ id: attendanceIntervalCorrections.id }).from(attendanceIntervalCorrections).where(eq(attendanceIntervalCorrections.attendanceIntervalId, intervalId));
     await addReceipt(transaction, { context, operation, requestId, payloadHash, entityType: "attendance_correction", entityId: correction.id, version: correctionRows.length });
@@ -510,7 +518,7 @@ export async function getTimecardDetail(context, timecardId) {
   return { ...row, employeeLabel: displayName(row.employee), days: days.map((day) => ({ ...day, sources: sources.filter((source) => source.timecardDayId === day.id) })), events };
 }
 
-export async function getTimecardReviewQueue(context, { status = "submitted", periodStart, periodEnd, cursor } = {}) {
+export async function getTimecardReviewQueue(context, { status = "submitted", periodStart, periodEnd, employeeNumber, cursor } = {}) {
   if (!["manager", "administrator"].includes(context.membership.role)) throw new OvertimeError("OVERTIME_FORBIDDEN");
   if (!periodStart || !periodEnd) throw new OvertimeError("TIMECARD_ACTIVE_PERIOD");
   const [schedule] = await getDb().select().from(payrollSchedules).where(eq(payrollSchedules.organizationId, context.organizationId));
@@ -521,6 +529,8 @@ export async function getTimecardReviewQueue(context, { status = "submitted", pe
   const boundary = decodeCursor(cursor);
   const filters = [eq(timecards.organizationId, context.organizationId), eq(timecards.status, status), eq(timecards.periodStart, periodStart), eq(timecards.periodEnd, periodEnd)];
   if (context.membership.role === "manager") filters.push(eq(employees.managerId, context.employeeId));
+  const normalizedEmployeeNumber = typeof employeeNumber === "string" ? employeeNumber.trim() : "";
+  if (normalizedEmployeeNumber) filters.push(eq(employees.employeeNumber, normalizedEmployeeNumber));
   if (boundary) filters.push(or(gt(employees.employeeNumber, boundary.employeeNumber), and(eq(employees.employeeNumber, boundary.employeeNumber), gt(timecards.id, boundary.id))));
   const rows = await getDb().select({ card: timecards, employee: employees }).from(timecards).innerJoin(employees, eq(employees.id, timecards.employeeId))
     .where(and(...filters)).orderBy(asc(employees.employeeNumber), asc(timecards.id)).limit(TIMECARD_PAGE_SIZE + 1);

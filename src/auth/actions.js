@@ -50,10 +50,18 @@ export async function signIn(previousState, formData) {
 
 export async function signOut() {
   const supabase = await createClient();
-  await supabase.auth.signOut();
-  logAuthEvent("sign_out");
   const cookieStore = await cookies();
+  let signOutError = null;
+  try {
+    ({ error: signOutError } = await supabase.auth.signOut());
+  } catch (error) {
+    signOutError = error;
+  }
   cookieStore.delete("hr_pulse_organization_id");
+  for (const { name } of cookieStore.getAll()) {
+    if (name.startsWith("sb-")) cookieStore.delete(name);
+  }
+  logAuthEvent(signOutError ? "sign_out_failed" : "sign_out");
   redirect("/sign-in");
 }
 

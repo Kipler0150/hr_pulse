@@ -27,7 +27,8 @@ export default async function TimecardReviewPage({ searchParams }) {
   const defaultPeriod = await getDefaultClosedPeriod(context.organizationId, context.organization.timezone);
   const periodStart = /^\d{4}-\d{2}-\d{2}$/.test(params?.periodStart ?? "") ? params.periodStart : defaultPeriod?.periodStart;
   const periodEnd = /^\d{4}-\d{2}-\d{2}$/.test(params?.periodEnd ?? "") ? params.periodEnd : defaultPeriod?.periodEnd;
-  const page = await getTimecardReviewQueue(context, { status, periodStart, periodEnd, cursor: params?.cursor });
+  const employeeNumber = typeof params?.employeeNumber === "string" ? params.employeeNumber.trim() : "";
+  const page = await getTimecardReviewQueue(context, { status, periodStart, periodEnd, employeeNumber, cursor: params?.cursor });
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -38,6 +39,7 @@ export default async function TimecardReviewPage({ searchParams }) {
         <CardHeader><CardTitle>Review queue</CardTitle><CardDescription>Up to 50 employees from one closed payroll period, ordered by employee number. Submitted timecards are selected by default.</CardDescription></CardHeader>
         <CardContent className="flex flex-col gap-5">
           <form className="flex flex-wrap items-end gap-3" method="get">
+            <Field><FieldLabel htmlFor="employee-number">Employee number</FieldLabel><Input defaultValue={employeeNumber} id="employee-number" name="employeeNumber" /></Field>
             <Field><FieldLabel htmlFor="queue-status">Timecard status</FieldLabel><NativeSelect defaultValue={status} id="queue-status" name="status">{["submitted", "returned", "draft", "approved"].map((value) => <NativeSelectOption key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</NativeSelectOption>)}</NativeSelect></Field>
             <Field><FieldLabel htmlFor="period-start">Period start</FieldLabel><Input defaultValue={periodStart} id="period-start" name="periodStart" required type="date" /></Field>
             <Field><FieldLabel htmlFor="period-end">Period end</FieldLabel><Input defaultValue={periodEnd} id="period-end" name="periodEnd" required type="date" /></Field>
@@ -46,7 +48,7 @@ export default async function TimecardReviewPage({ searchParams }) {
           {page.rows.length === 0 ? <Empty><EmptyHeader><EmptyMedia variant="icon"><ClipboardCheckIcon aria-hidden="true" /></EmptyMedia><EmptyTitle>No {status} timecards</EmptyTitle><EmptyDescription>The queue will update when an employee submits or a reviewer changes a timecard.</EmptyDescription></EmptyHeader></Empty> : (
             <div className="flex flex-col gap-3">
               {page.rows.map(({ card, employee, employeeLabel }) => <ResponsiveRecord action={<Link className={cn(buttonVariants({ variant: "outline" }))} href={`/timecards/${card.id}`}>Review</Link>} key={card.id} priorityValues={[{ label: "Period", value: formatDateRange(card.periodStart, card.periodEnd) }, { label: "Worked", value: hours(card.workedSeconds) }]} secondaryValues={[{ label: "Overtime", value: hours(card.overtimeSeconds) }, { label: "Overtime earning", value: formatMoney(card.overtimeAmountMinor, card.currency) }, { label: "Status", value: <StatusBadge {...getStatusPresentation(card.status)} /> }]} title={`${employee.employeeNumber} · ${employeeLabel}`} />)}
-              {page.nextCursor ? <Link className={cn(buttonVariants({ variant: "outline" }), "self-start")} href={`/timecards/review?status=${status}&periodStart=${periodStart}&periodEnd=${periodEnd}&cursor=${encodeURIComponent(page.nextCursor)}`}>Next 50 timecards</Link> : null}
+              {page.nextCursor ? <Link className={cn(buttonVariants({ variant: "outline" }), "self-start")} href={`/timecards/review?status=${status}&employeeNumber=${encodeURIComponent(employeeNumber)}&periodStart=${periodStart}&periodEnd=${periodEnd}&cursor=${encodeURIComponent(page.nextCursor)}`}>Next 50 timecards</Link> : null}
             </div>
           )}
         </CardContent>

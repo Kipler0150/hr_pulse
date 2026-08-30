@@ -74,6 +74,16 @@ describe("attendance access", () => {
     expect(mocks.assertAttendanceEnabled).toHaveBeenCalledOnce();
   });
 
+  it("selects the sole active organization when no organization cookie exists", async () => {
+    mocks.cookies.mockResolvedValue({ get: vi.fn(() => undefined) });
+    installAccessFixture();
+
+    await expect(requireAttendanceContext()).resolves.toMatchObject({
+      organizationId: organization.id,
+      selected: { organizationId: organization.id },
+    });
+  });
+
   it("enforces employee and reviewer role boundaries, covers: AC-5", async () => {
     installAccessFixture({ role: "manager" });
     await expect(requireAttendanceContext()).rejects.toMatchObject({ code: "ATTENDANCE_FORBIDDEN" });

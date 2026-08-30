@@ -8,10 +8,9 @@ export async function requireOvertimeContext() {
   assertOvertimeEnabled();
   const cookieStore = await cookies();
   const organizationId = cookieStore.get("hr_pulse_organization_id")?.value;
-  if (!organizationId) throw new OvertimeError("OVERTIME_FORBIDDEN");
   try {
     const state = await requireOrganizationAccess(organizationId);
-    return { ...state, organizationId, organization: state.membership.organization, employeeId: state.membership.employeeId ?? null };
+    return { ...state, organizationId: state.membership.organizationId, organization: state.membership.organization, employeeId: state.membership.employeeId ?? null };
   } catch (error) {
     if (error instanceof OvertimeError) throw error;
     throw new OvertimeError("OVERTIME_FORBIDDEN", { organizationId, cause: error });

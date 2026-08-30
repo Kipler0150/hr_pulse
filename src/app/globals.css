@@ -2,6 +2,9 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Verification traces are generated artifacts and must not be scanned as class sources. */
+@source not "../../.check-scratch/**/*";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

@@ -20,7 +20,7 @@ describe("overtime access context", () => {
     mocks.cookies.mockResolvedValue({ get: vi.fn().mockReturnValue({ value: organization.id }) });
     mocks.requireOrganizationAccess.mockResolvedValue({
       profile: { id: "profile-id" },
-      membership: { role: "administrator", employeeId: "employee-id", organization },
+      membership: { role: "administrator", employeeId: "employee-id", organization, organizationId: organization.id },
     });
 
     await expect(requireOvertimeContext()).resolves.toMatchObject({
@@ -28,5 +28,17 @@ describe("overtime access context", () => {
       organization,
       employeeId: "employee-id",
     });
+  });
+
+  it("uses the sole authorized membership when the organization cookie is absent", async () => {
+    const organization = { id: "organization-id", timezone: "Asia/Manila" };
+    mocks.cookies.mockResolvedValue({ get: vi.fn().mockReturnValue(undefined) });
+    mocks.requireOrganizationAccess.mockResolvedValue({
+      profile: { id: "profile-id" },
+      membership: { role: "administrator", organizationId: organization.id, organization },
+    });
+
+    await expect(requireOvertimeContext()).resolves.toMatchObject({ organizationId: organization.id });
+    expect(mocks.requireOrganizationAccess).toHaveBeenCalledWith(undefined);
   });
 });

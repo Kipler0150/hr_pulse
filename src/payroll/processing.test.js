@@ -3,6 +3,8 @@ import { getTableName } from "drizzle-orm";
 
 const mocks = vi.hoisted(() => ({
   captureException: vi.fn(),
+  count: vi.fn(),
+  distribution: vi.fn(),
   getDb: vi.fn(),
   generatePayslipPdf: vi.fn(),
   uploadVerifiedPayslip: vi.fn(),
@@ -10,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   writeAuditEvent: vi.fn(),
 }));
 
-vi.mock("@sentry/nextjs", () => ({ captureException: mocks.captureException }));
+vi.mock("@sentry/nextjs", () => ({ captureException: mocks.captureException, metrics: { count: mocks.count, distribution: mocks.distribution } }));
 vi.mock("@/db", () => ({ getDb: mocks.getDb }));
 vi.mock("./pdf", () => ({ generatePayslipPdf: mocks.generatePayslipPdf }));
 vi.mock("@/lib/storage", () => ({ uploadVerifiedPayslip: mocks.uploadVerifiedPayslip, removePayslip: mocks.removePayslip }));

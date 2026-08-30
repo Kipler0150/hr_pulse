@@ -85,6 +85,7 @@ export function PaySettingForm({ employeeId, currency, frequency, requestId, exp
   return (
     <form action={action} className="flex flex-col gap-5">
       <input name="employeeId" type="hidden" value={employeeId} />
+      <input name="payFrequency" type="hidden" value={frequency} />
       <input name="requestId" type="hidden" value={requestId} />
       <input name="expectedVersion" type="hidden" value={expectedVersion} />
       <FieldGroup>
