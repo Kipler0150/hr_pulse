@@ -10,7 +10,9 @@ import { Badge } from "@/components/ui/badge";
 
 const statusMap = {
   approved: { Icon: CheckIcon, label: "Approved", shape: "solid circle", variant: "success" },
+  cancelled: { Icon: OctagonXIcon, label: "Cancelled", shape: "octagon", variant: "warning" },
   draft: { Icon: CircleDotDashedIcon, label: "Draft", shape: "outlined circle", variant: "outline" },
+  declined: { Icon: OctagonXIcon, label: "Declined", shape: "octagon", variant: "destructive" },
   completed: { Icon: CheckIcon, label: "Completed", shape: "solid circle", variant: "success" },
   finalized: { Icon: LockKeyholeIcon, label: "Finalized", shape: "locked solid circle", variant: "success" },
   generated: { Icon: LockKeyholeIcon, label: "Generated", shape: "locked solid circle", variant: "success" },

@@ -1,0 +1,2 @@
+ALTER TABLE leave_requests DROP CONSTRAINT IF EXISTS leave_requests_employee_id_employees_id_fk;--> statement-breakpoint
+ALTER TABLE leave_request_events DROP CONSTRAINT IF EXISTS leave_request_events_leave_request_id_leave_requests_id_fk;

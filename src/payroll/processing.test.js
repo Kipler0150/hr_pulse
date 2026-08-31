@@ -24,7 +24,22 @@ import { failPayrollRun, processPayrollRun } from "./processing";
 const organizationId = "123e4567-e89b-12d3-a456-426614174000";
 const runId = "123e4567-e89b-12d3-a456-426614174001";
 
-function createDatabase({ runStatus = "queued", payoutCount = 1, uploadFails = false } = {}) {
+function sqlParts(predicate) {
+  const columns = [];
+  const params = [];
+  const seen = new Set();
+  function walk(chunk) {
+    if (!chunk || typeof chunk !== "object" || seen.has(chunk)) return;
+    seen.add(chunk);
+    if (chunk.constructor?.name === "Param") params.push(chunk.value);
+    else if (chunk.name && chunk.table && !chunk.queryChunks) columns.push(chunk.name);
+    if (Array.isArray(chunk.queryChunks)) chunk.queryChunks.forEach(walk);
+  }
+  walk(predicate);
+  return { columns, params };
+}
+
+function createDatabase({ runStatus = "queued", payoutCount = 1, uploadFails = false, enforceLeaseOwnership = false } = {}) {
   const updates = [];
   const payoutRows = Array.from({ length: payoutCount }, (_, index) => ({
     payout: { id: `payout-${index}`, employeeNumber: `E-${String(index).padStart(3, "0")}` },
@@ -68,8 +83,19 @@ function createDatabase({ runStatus = "queued", payoutCount = 1, uploadFails = f
     return {
       set: (values) => {
         updates.push({ tableName, values });
-        if (tableName === "payroll_runs") Object.assign(run, values);
-        return { where: () => Promise.resolve([]) };
+        return {
+          where: (predicate) => {
+            let shouldApply = true;
+            if (tableName === "payroll_runs" && enforceLeaseOwnership && values.errorCode && values.leaseOwner === null) {
+              const { columns, params } = sqlParts(predicate);
+              const conditions = Object.fromEntries(columns.map((column, index) => [column, params[index]]));
+              const fieldNames = { id: "id", processing_generation: "processingGeneration", lease_owner: "leaseOwner" };
+              shouldApply = Object.entries(conditions).every(([column, value]) => run[fieldNames[column]] === value);
+            }
+            if (tableName === "payroll_runs" && shouldApply) Object.assign(run, values);
+            return Promise.resolve([]);
+          },
+        };
       },
     };
   }
@@ -86,6 +112,7 @@ function createDatabase({ runStatus = "queued", payoutCount = 1, uploadFails = f
   mocks.generatePayslipPdf.mockResolvedValue(Buffer.from("pdf bytes"));
   if (uploadFails) mocks.uploadVerifiedPayslip.mockRejectedValue(new PayrollError("PAYSLIP_INTEGRITY_FAILED"));
   else mocks.uploadVerifiedPayslip.mockResolvedValue({ size: 9 });
+  database.run = run;
   return database;
 }
 
@@ -140,6 +167,22 @@ describe("payroll processing", () => {
     expect(mocks.captureException).toHaveBeenCalledWith(expect.any(Error), {
       tags: { organizationId, runId, attemptId: "attempt-id", code: "PAYSLIP_INTEGRITY_FAILED" },
     });
+  });
+
+  it("does not release a replacement worker lease after a stale worker fails", async () => {
+    const database = createDatabase({ uploadFails: true, enforceLeaseOwnership: true });
+    mocks.getDb.mockReturnValue(database);
+    mocks.uploadVerifiedPayslip.mockImplementation(async () => {
+      database.run.leaseOwner = "replacement-event";
+      database.run.leaseExpiresAt = new Date("2026-08-26T00:10:00.000Z");
+      throw new PayrollError("PAYSLIP_INTEGRITY_FAILED");
+    });
+
+    await expect(processPayrollRun({ runId, organizationId, generation: 1, eventId: "stale-event" }))
+      .rejects.toMatchObject({ code: "PAYSLIP_INTEGRITY_FAILED" });
+
+    expect(database.run.leaseOwner).toBe("replacement-event");
+    expect(database.run.errorCode).toBeNull();
   });
 
   it("moves an exhausted generation to one safe terminal failure, covers: AC-8, AC-9, and AC-11", async () => {

@@ -3,6 +3,7 @@ import { Building2Icon, CalendarClockIcon, ClipboardCheckIcon, LandmarkIcon, Lay
 
 import { isAttendanceEnabled } from "@/attendance/config";
 import { isOvertimeEnabled } from "@/overtime/config";
+import { isTimeOffEnabled } from "@/time-off/config";
 import { signOut } from "@/auth/actions";
 import { BrandMark } from "@/components/brand-mark";
 import { MobileNavigation } from "@/components/mobile-navigation";
@@ -46,6 +47,9 @@ export function AppShell({ children, state, themePreference }) {
   const timecardsHref = isOvertimeEnabled()
     ? state.selected.role === "employee" ? "/timecards" : "/timecards/review"
     : null;
+  const timeOffHref = isTimeOffEnabled()
+    ? state.selected.role === "employee" ? "/time-off" : "/time-off/review"
+    : null;
   const mobileFooter = (
     <div className="flex flex-col gap-4">
       <Identity email={state.user.email} name={name} role={state.selected.role} />
@@ -85,6 +89,12 @@ export function AppShell({ children, state, themePreference }) {
               Timecards
             </Link>
           ) : null}
+          {timeOffHref ? (
+            <Link className={cn(buttonVariants({ size: "comfortable", variant: "ghost" }), "justify-start text-sidebar-foreground")} data-slot="navigation-link" href={timeOffHref}>
+              <CalendarClockIcon data-icon="inline-start" />
+              Time off
+            </Link>
+          ) : null}
           {canSwitch ? (
             <Link className={cn(buttonVariants({ size: "comfortable", variant: "ghost" }), "justify-start text-sidebar-foreground")} data-slot="navigation-link" href="/choose-organization">
               <Building2Icon data-icon="inline-start" />
@@ -102,7 +112,7 @@ export function AppShell({ children, state, themePreference }) {
           <div className="flex min-h-16 items-center justify-between gap-3 px-4 sm:px-6 xl:px-8">
             <div className="flex min-w-0 items-center gap-2">
               <div className="md:hidden">
-                <MobileNavigation attendance={attendanceHref} footer={mobileFooter} organizationName={organizationName} payroll={canManagePayroll} switchOrganization={canSwitch} timecards={timecardsHref} />
+                <MobileNavigation attendance={attendanceHref} footer={mobileFooter} organizationName={organizationName} payroll={canManagePayroll} switchOrganization={canSwitch} timecards={timecardsHref} timeOff={timeOffHref} />
               </div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{organizationName}</p>

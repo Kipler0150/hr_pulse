@@ -8,6 +8,7 @@ import {
   presentAttendanceInterval,
 } from "./format";
 import { reportAttendanceFailure } from "./telemetry";
+import { isTimeOffEnabled } from "@/time-off/config";
 
 const INTERVAL_FIELDS = "id,employee_id,clock_in,clock_out,source,status";
 const REVIEW_FIELDS = `${INTERVAL_FIELDS},employees!inner(id,organization_id,legal_name,preferred_name)`;
@@ -50,6 +51,98 @@ function pageResult(rows) {
   };
 }
 
+function intervalOverlapsDay(interval, day) {
+  const start = Date.parse(interval.clock_in ?? interval.corrected_clock_in);
+  const end = Date.parse(interval.clock_out ?? interval.corrected_clock_out);
+  return Number.isFinite(start) && Number.isFinite(end) && end > start
+    && start < Date.parse(day.utcEnd) && end > Date.parse(day.utcStart);
+}
+
+function latestCorrections(rows) {
+  return (rows ?? []).reduce((latest, correction) => {
+    const current = latest.get(correction.attendance_interval_id);
+    if (!current || correction.created_at > current.created_at || (correction.created_at === current.created_at && correction.id > current.id)) latest.set(correction.attendance_interval_id, correction);
+    return latest;
+  }, new Map());
+}
+
+async function getApprovedLeaveMarkers(context, day, employeeId = null) {
+  if (!isTimeOffEnabled()) return { markers: [], available: true };
+  try {
+    if (process.env.HR_PULSE_VERIFY_LEAVE_FAILURE === "true" && process.env.NODE_ENV !== "production") throw new Error("CONTROLLED_LEAVE_MARKER_FAILURE");
+    let markersQuery = context.supabase
+      .from("leave_requests")
+      .select("id,employee_id,start_date,end_date,leave_type,employees!inner(legal_name,preferred_name,organization_id)")
+      .eq("organization_id", context.organizationId)
+      .eq("status", "approved")
+      .lte("start_date", day.date)
+      .gte("end_date", day.date);
+    if (employeeId) markersQuery = markersQuery.eq("employee_id", employeeId);
+    const { data: markers, error: markerError } = await markersQuery;
+    if (markerError) throw markerError;
+
+    const employeeIds = [...new Set((markers ?? []).map((marker) => marker.employee_id))];
+    if (employeeIds.length === 0) return { markers: [], available: true };
+    const { data: originalIntervals, error: originalError } = await context.supabase
+      .from("attendance_intervals")
+      .select("id,employee_id,clock_in,clock_out")
+      .in("employee_id", employeeIds)
+      .lt("clock_in", day.utcEnd)
+      .or(`clock_out.gt.${day.utcStart},clock_out.is.null`);
+    if (originalError) throw originalError;
+    const { data: overlappingCorrections, error: correctionError } = await context.supabase
+      .from("attendance_interval_corrections")
+      .select("id,attendance_interval_id,attendance_intervals!inner(employee_id)")
+      .eq("organization_id", context.organizationId)
+      .in("attendance_intervals.employee_id", employeeIds)
+      .lt("corrected_clock_in", day.utcEnd)
+      .gt("corrected_clock_out", day.utcStart)
+      .limit(500);
+    if (correctionError) throw correctionError;
+
+    const knownIds = new Set((originalIntervals ?? []).map((interval) => interval.id));
+    const candidateIds = [...new Set([...knownIds, ...(overlappingCorrections ?? []).map((correction) => correction.attendance_interval_id)])];
+    const missingIntervalIds = candidateIds.filter((id) => !knownIds.has(id));
+    let correctedIntervals = [];
+    if (missingIntervalIds.length > 0) {
+      const { data, error } = await context.supabase
+        .from("attendance_intervals")
+        .select("id,employee_id,clock_in,clock_out")
+        .in("id", missingIntervalIds);
+      if (error) throw error;
+      correctedIntervals = data ?? [];
+    }
+    const candidateIntervals = [...(originalIntervals ?? []), ...correctedIntervals];
+    const { data: corrections, error: latestCorrectionError } = await context.supabase
+      .from("attendance_interval_corrections")
+      .select("id,attendance_interval_id,corrected_clock_in,corrected_clock_out,created_at")
+      .in("attendance_interval_id", candidateIds)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+    if (latestCorrectionError) throw latestCorrectionError;
+    const correctionsByInterval = latestCorrections(corrections);
+    const workedEmployeeIds = new Set(candidateIntervals.filter((interval) => {
+      const correction = correctionsByInterval.get(interval.id);
+      return intervalOverlapsDay(correction ?? interval, day);
+    }).map((interval) => interval.employee_id));
+    return {
+      available: true,
+      markers: (markers ?? []).map((marker) => ({
+        id: marker.id,
+        employeeId: marker.employee_id,
+        employeeName: marker.employees?.preferred_name || marker.employees?.legal_name || null,
+        leaveType: marker.leave_type,
+        startDate: marker.start_date,
+        endDate: marker.end_date,
+        workedDuringLeave: workedEmployeeIds.has(marker.employee_id),
+      })),
+    };
+  } catch (error) {
+    reportUnexpected(error, { ...context, action: "time_off.attendance_markers" });
+    return { markers: [], available: false };
+  }
+}
+
 export async function getEmployeeAttendance({ cursor: cursorValue } = {}) {
   const context = await requireAttendanceContext();
   const cursor = cursorValue ? decodeAttendanceCursor(cursorValue) : null;
@@ -80,10 +173,12 @@ export async function getEmployeeAttendance({ cursor: cursorValue } = {}) {
     if (intervalsResult.error) throw attendanceErrorFromSupabase(intervalsResult.error, context);
     if (openResult.error) throw attendanceErrorFromSupabase(openResult.error, context);
 
+    const leave = await getApprovedLeaveMarkers(context, day, context.employeeId);
     return {
       context,
       day,
       openInterval: openResult.data ? presentAttendanceInterval(openResult.data) : null,
+      leave,
       ...pageResult(intervalsResult.data ?? []),
     };
   } catch (error) {
@@ -114,7 +209,8 @@ export async function getAttendanceReview({ cursor: cursorValue, date: dateValue
     const { data, error } = await query;
     if (error) throw attendanceErrorFromSupabase(error, context);
 
-    return { context, day, ...pageResult(data ?? []) };
+    const leave = await getApprovedLeaveMarkers(context, day);
+    return { context, day, leave, ...pageResult(data ?? []) };
   } catch (error) {
     reportUnexpected(error, { ...context, action: "attendance.review_read" });
     throw error;

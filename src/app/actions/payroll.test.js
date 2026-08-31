@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getTableName } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
@@ -25,7 +26,7 @@ vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("@/payroll/service", () => ({ confirmPayroll: mocks.confirmPayroll, getPayrollRun: mocks.getPayrollRun, previewPayroll: mocks.previewPayroll }));
 vi.mock("@/payroll/queue", () => ({ submitPayrollRun: mocks.submitPayrollRun }));
 
-import { confirmPayrollAction, deactivateEmployeeAction, savePaySettingAction } from "./payroll";
+import { confirmPayrollAction, deactivateEmployeeAction, saveEmployeeAction, savePaySettingAction } from "./payroll";
 
 const organizationId = "123e4567-e89b-12d3-a456-426614174000";
 const profileId = "123e4567-e89b-12d3-a456-426614174001";
@@ -40,6 +41,47 @@ function employeeTransaction(result) {
         }),
       }),
     }),
+  };
+}
+
+function employeeEditDatabase(existing, profileRows = []) {
+  const updates = [];
+  const transaction = {
+    update: (table) => ({
+      set: (values) => {
+        updates.push({ tableName: getTableName(table), values });
+        return { where: () => ({ returning: () => Promise.resolve([{ ...existing, ...values }]) }) };
+      },
+    }),
+  };
+  return {
+    select: () => ({
+      from: (table) => {
+        const tableName = getTableName(table);
+        const chain = {
+          joinPredicates: [],
+          innerJoin: (_joinedTable, predicate) => { chain.joinPredicates.push(predicate); return chain; },
+          where: (predicate) => {
+            if (tableName === "employees") return Promise.resolve([existing]);
+            const queries = [...chain.joinPredicates, predicate].map((value) => new PgDialect().sqlToQuery(value));
+            const matches = profileRows.filter((profile) => queries.every(({ sql, params }) => {
+              const matchesCondition = (expression, expected) => {
+                const match = sql.match(expression);
+                return !match || params[Number(match[1]) - 1] === expected;
+              };
+              return matchesCondition(/"profiles"\."email" = \$(\d+)/, profile.email)
+                && matchesCondition(/"memberships"\."status" = \$(\d+)/, profile.membershipStatus)
+                && matchesCondition(/"memberships"\."organization_id" = \$(\d+)/, profile.membershipOrganizationId)
+                && (!sql.includes('"memberships"."profile_id" = "profiles"."id"') || profile.membershipProfileId === profile.id);
+            }));
+            return Promise.resolve(matches);
+          },
+        };
+        return chain;
+      },
+    }),
+    transaction: (callback) => callback(transaction),
+    updates,
   };
 }
 
@@ -83,11 +125,134 @@ function paySettingForm(overrides = {}) {
   return formData;
 }
 
+function employeeForm(overrides = {}) {
+  const formData = new FormData();
+  formData.set("employeeId", employeeId);
+  formData.set("employeeNumber", "EMP-001");
+  formData.set("legalName", "Test Employee");
+  formData.set("email", "employee@example.test");
+  formData.set("hireDate", "2026-01-01");
+  for (const [key, value] of Object.entries(overrides)) formData.set(key, value);
+  return formData;
+}
+
 describe("payroll server actions", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.useRealTimers();
     mocks.requirePayrollAdministrator.mockResolvedValue({ organizationId, profile: { id: profileId } });
+  });
+
+  it("keeps an existing employee profile link during an ordinary edit, covers: AC-2", async () => {
+    const linkedProfileId = "123e4567-e89b-12d3-a456-426614174004";
+    const database = employeeEditDatabase({ id: employeeId, organizationId, profileId: linkedProfileId });
+    mocks.getDb.mockReturnValue(database);
+    const formData = new FormData();
+    formData.set("employeeId", employeeId);
+    formData.set("employeeNumber", "EMP-001");
+    formData.set("legalName", "Updated Employee");
+    formData.set("email", "updated@example.test");
+    formData.set("hireDate", "2026-01-01");
+
+    await expect(saveEmployeeAction(null, formData)).resolves.toEqual({ success: true, employeeId });
+    expect(database.updates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ tableName: "employees", values: expect.objectContaining({ profileId: linkedProfileId }) }),
+    ]));
+    expect(mocks.writeAuditEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      action: "employee.updated",
+      metadata: { profileLinked: true, profileAction: "keep" },
+    }));
+  });
+
+  it("links an employee to an active profile in the current organization, covers: AC-2 and AC-9", async () => {
+    const linkedProfileId = "123e4567-e89b-12d3-a456-426614174004";
+    const database = employeeEditDatabase({ id: employeeId, organizationId, profileId: null }, [{
+      id: linkedProfileId,
+      email: "active@example.test",
+      membershipStatus: "active",
+      membershipOrganizationId: organizationId,
+      membershipProfileId: linkedProfileId,
+    }]);
+    mocks.getDb.mockReturnValue(database);
+
+    await expect(saveEmployeeAction(null, employeeForm({ profileAction: "link", profileEmail: "active@example.test" })))
+      .resolves.toEqual({ success: true, employeeId });
+    expect(database.updates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ tableName: "employees", values: expect.objectContaining({ profileId: linkedProfileId }) }),
+    ]));
+  });
+
+  it("rejects linking when the profile is inactive, covers: AC-2 and AC-9", async () => {
+    mocks.getDb.mockReturnValue(employeeEditDatabase({ id: employeeId, organizationId, profileId: null }, [{
+      id: "inactive-profile-id",
+      email: "inactive@example.test",
+      membershipStatus: "inactive",
+      membershipOrganizationId: organizationId,
+      membershipProfileId: "inactive-profile-id",
+    }]));
+
+    await expect(saveEmployeeAction(null, employeeForm({ profileAction: "link", profileEmail: "inactive@example.test" })))
+      .resolves.toMatchObject({ error: { code: "REQUEST_FAILED", message: "No provisioned profile matches that exact email" } });
+  });
+
+  it("rejects linking when the profile belongs to another organization, covers: AC-2 and AC-9", async () => {
+    mocks.getDb.mockReturnValue(employeeEditDatabase({ id: employeeId, organizationId, profileId: null }, [{
+      id: "foreign-profile-id",
+      email: "other-org@example.test",
+      membershipStatus: "active",
+      membershipOrganizationId: "123e4567-e89b-12d3-a456-426614174099",
+      membershipProfileId: "foreign-profile-id",
+    }]));
+
+    await expect(saveEmployeeAction(null, employeeForm({ profileAction: "link", profileEmail: "other-org@example.test" })))
+      .resolves.toMatchObject({ error: { code: "REQUEST_FAILED", message: "No provisioned profile matches that exact email" } });
+  });
+
+  it("rejects linking when the requested email does not match the provisioned profile, covers: AC-2 and AC-9", async () => {
+    mocks.getDb.mockReturnValue(employeeEditDatabase({ id: employeeId, organizationId, profileId: null }, [{
+      id: "different-email-profile-id",
+      email: "actual@example.test",
+      membershipStatus: "active",
+      membershipOrganizationId: organizationId,
+      membershipProfileId: "different-email-profile-id",
+    }]));
+
+    await expect(saveEmployeeAction(null, employeeForm({ profileAction: "link", profileEmail: "requested@example.test" })))
+      .resolves.toMatchObject({ error: { code: "REQUEST_FAILED", message: "No provisioned profile matches that exact email" } });
+  });
+
+  it("rejects a membership that points at a different profile, covers: AC-2 and AC-9", async () => {
+    mocks.getDb.mockReturnValue(employeeEditDatabase({ id: employeeId, organizationId, profileId: null }, [{
+      id: "selected-profile-id",
+      email: "mismatched@example.test",
+      membershipStatus: "active",
+      membershipOrganizationId: organizationId,
+      membershipProfileId: "another-profile-id",
+    }]));
+
+    await expect(saveEmployeeAction(null, employeeForm({ profileAction: "link", profileEmail: "mismatched@example.test" })))
+      .resolves.toMatchObject({ error: { code: "REQUEST_FAILED", message: "No provisioned profile matches that exact email" } });
+  });
+
+  it("clears an employee profile link only when unlink is explicit, covers: AC-2", async () => {
+    const database = employeeEditDatabase({ id: employeeId, organizationId, profileId: profileId });
+    mocks.getDb.mockReturnValue(database);
+
+    await expect(saveEmployeeAction(null, employeeForm({ profileAction: "unlink" })))
+      .resolves.toEqual({ success: true, employeeId });
+    expect(database.updates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ tableName: "employees", values: expect.objectContaining({ profileId: null }) }),
+    ]));
+    expect(mocks.writeAuditEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      metadata: { profileLinked: false, profileAction: "unlink" },
+    }));
+  });
+
+  it("rejects an invalid employee profile action, covers: AC-2", async () => {
+    mocks.getDb.mockReturnValue(employeeEditDatabase({ id: employeeId, organizationId, profileId: null }));
+
+    await expect(saveEmployeeAction(null, employeeForm({ profileAction: "replace" })))
+      .resolves.toMatchObject({ error: { code: "REQUEST_FAILED", message: "Employee profile link action is invalid" } });
   });
 
   it.skipIf(process.env.HR_PULSE_OVERTIME_INTEGRATION !== "true" || !process.env.DATABASE_URL)("replays one pay setting request without another setting or receipt, covers: AC-6", async () => {

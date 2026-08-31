@@ -3,7 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { BanknoteIcon, UserRoundPenIcon, UserRoundXIcon } from "lucide-react";
 import { deactivateEmployeeAction } from "@/app/actions/payroll";
 import { getDb } from "@/db";
-import { employees, paySettingDeductions, paySettings, payrollSchedules, organizations } from "@/db/schema";
+import { employees, paySettingDeductions, paySettings, payrollSchedules, organizations, profiles } from "@/db/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,13 +27,16 @@ export default async function PayrollEmployeePage({ params }) {
     database.select().from(paySettings).where(eq(paySettings.employeeId, employeeId)).orderBy(desc(paySettings.effectiveFrom)),
   ]);
   if (!employee) notFound();
+  const [profile] = employee.profileId
+    ? await database.select({ email: profiles.email }).from(profiles).where(eq(profiles.id, employee.profileId))
+    : [null];
   const deductionRows = settings.length ? await database.select().from(paySettingDeductions).where(eq(paySettingDeductions.paySettingId, settings[0].id)) : [];
   const currencyExponent = getCurrencyExponent(source.organization.defaultCurrency);
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-sm font-medium text-muted-foreground">{employee.employeeNumber}</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">{employee.legalName}</h1><p className="mt-3 text-base text-muted-foreground">Maintain identity separately from effective pay history.</p></div><Badge variant={employee.status === "active" ? "success" : "secondary"}>{employee.status}</Badge></header>
       <div className="grid gap-6 xl:grid-cols-2">
-        <Card><CardHeader><span className="mb-3 flex size-10 items-center justify-center rounded-xl bg-accent text-accent-foreground"><UserRoundPenIcon aria-hidden="true" /></span><CardTitle>Employee profile</CardTitle><CardDescription>Editing current identity does not rewrite confirmed payroll snapshots.</CardDescription></CardHeader><CardContent><EmployeeForm employee={employee} /></CardContent></Card>
+        <Card><CardHeader><span className="mb-3 flex size-10 items-center justify-center rounded-xl bg-accent text-accent-foreground"><UserRoundPenIcon aria-hidden="true" /></span><CardTitle>Employee profile</CardTitle><CardDescription>Editing current identity does not rewrite confirmed payroll snapshots.</CardDescription></CardHeader><CardContent><EmployeeForm employee={{ ...employee, profileEmail: profile?.email ?? "" }} /></CardContent></Card>
         <Card><CardHeader><span className="mb-3 flex size-10 items-center justify-center rounded-xl bg-accent text-accent-foreground"><BanknoteIcon aria-hidden="true" /></span><CardTitle>Add effective pay</CardTitle><CardDescription>Pay must cover a whole {source.schedule.frequency} period in {source.organization.defaultCurrency}.</CardDescription></CardHeader><CardContent><PaySettingForm currency={source.organization.defaultCurrency} employeeId={employee.id} expectedVersion={settings[0]?.version ?? 0} frequency={source.schedule.frequency} overtimeEnabled={isOvertimeEnabled()} requestId={randomUUID()} /></CardContent></Card>
       </div>
       <Card>

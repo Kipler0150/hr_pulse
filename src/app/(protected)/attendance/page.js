@@ -7,7 +7,7 @@ import { getAttendanceReleaseState } from "@/attendance/config";
 import { serializeAttendanceError } from "@/attendance/errors";
 import { getEmployeeAttendance } from "@/attendance/queries";
 import { AttendanceActionForm } from "@/app/(protected)/attendance/components/attendance-action-form";
-import { AttendanceStatus, LongIntervalWarning } from "@/app/(protected)/attendance/components/attendance-status";
+import { ApprovedLeaveMarker, AttendanceStatus, LongIntervalWarning } from "@/app/(protected)/attendance/components/attendance-status";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -106,6 +106,8 @@ export default async function AttendancePage({ searchParams }) {
                 <h2 className="text-xl font-semibold" id="today-title">Today&apos;s intervals</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Work sessions that started on {attendance.day.date} in {timezone}</p>
               </div>
+              {!attendance.leave.available ? <Alert variant="warning"><TriangleAlertIcon aria-hidden="true" /><AlertTitle>Leave data is temporarily unavailable</AlertTitle><AlertDescription>Attendance is current, but approved leave markers and conflict warnings are hidden until leave data loads again.</AlertDescription></Alert> : null}
+              {attendance.leave.markers.map((marker) => <ApprovedLeaveMarker key={marker.id} marker={marker} />)}
               {attendance.rows.length === 0 ? (
                 <Card>
                   <CardContent>

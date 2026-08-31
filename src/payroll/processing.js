@@ -140,7 +140,11 @@ export async function processPayrollRun({ runId, organizationId, generation, eve
       outcome: "retryable_failure", finishedAt: new Date(), errorCode: safe.code, errorGuidance: safe.guidance,
     }).where(eq(payrollRunAttempts.id, run.attemptId));
     await database.update(payrollRuns).set({ leaseOwner: null, leaseExpiresAt: null, errorCode: safe.code, errorGuidance: safe.guidance, updatedAt: new Date() })
-      .where(eq(payrollRuns.id, run.id));
+      .where(and(
+        eq(payrollRuns.id, run.id),
+        eq(payrollRuns.processingGeneration, run.processingGeneration),
+        eq(payrollRuns.leaseOwner, eventId),
+      ));
     recordPayrollMetric({ operation: "payroll.calculation", organizationId, entityId: run.id, code: safe.code, durationMs: Date.now() - startedAt });
     Sentry.captureException(error, { tags: { organizationId, runId, attemptId: run.attemptId, code: safe.code } });
     throw error;

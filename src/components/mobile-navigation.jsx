@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
-export function MobileNavigation({ attendance = null, organizationName, switchOrganization, footer, payroll = false, timecards = null }) {
+export function MobileNavigation({ attendance = null, organizationName, switchOrganization, footer, payroll = false, timecards = null, timeOff = null }) {
   return (
     <Sheet>
       <SheetTrigger render={<Button aria-label="Open navigation" size="icon-comfortable" variant="ghost" />}>
@@ -46,6 +46,12 @@ export function MobileNavigation({ attendance = null, organizationName, switchOr
             <Link className={cn(buttonVariants({ size: "comfortable", variant: "ghost" }), "justify-start")} data-slot="navigation-link" href={timecards}>
               <ClipboardCheckIcon data-icon="inline-start" />
               Timecards
+            </Link>
+          ) : null}
+          {timeOff ? (
+            <Link className={cn(buttonVariants({ size: "comfortable", variant: "ghost" }), "justify-start")} data-slot="navigation-link" href={timeOff}>
+              <CalendarClockIcon data-icon="inline-start" />
+              Time off
             </Link>
           ) : null}
           {switchOrganization ? (

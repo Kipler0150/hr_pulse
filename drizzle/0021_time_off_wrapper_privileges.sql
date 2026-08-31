@@ -1,0 +1,2 @@
+REVOKE ALL ON FUNCTION cancel_leave_request(uuid, uuid, integer, uuid), approve_leave_request(uuid, uuid, integer, text, uuid), decline_leave_request(uuid, uuid, integer, text, text, uuid) FROM PUBLIC, anon;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION cancel_leave_request(uuid, uuid, integer, uuid), approve_leave_request(uuid, uuid, integer, text, uuid), decline_leave_request(uuid, uuid, integer, text, text, uuid) TO authenticated;

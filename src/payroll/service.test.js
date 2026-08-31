@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({ getDb: vi.fn() }));
 vi.mock("@/db", () => ({ getDb: mocks.getDb }));
 
 import { decodeCursor, PAYROLL_PAGE_SIZE } from "./pagination";
-import { getPayrollRunStatus, listPayrollRuns } from "./service";
+import { confirmPayroll, getPayrollRunStatus, listPayrollRuns } from "./service";
 
 function queryReturning(rows) {
   const chain = {
@@ -90,5 +90,29 @@ describe("payroll read service", () => {
     mocks.getDb.mockReturnValue({ select: vi.fn(() => queryReturning(rows)) });
 
     await expect(listPayrollRuns("organization-id", null)).resolves.toEqual({ rows, nextCursor: null });
+  });
+
+  it("returns the existing period run when a duplicate token has expired", async () => {
+    vi.stubEnv("SUPABASE_PAYSLIPS_BUCKET", "private-payslips");
+    const existingRun = { id: "confirmed-run", status: "queued" };
+    const expiredToken = {
+      actorProfileId: "actor-id",
+      consumedAt: null,
+      expiresAt: new Date("2026-08-25T00:00:00.000Z"),
+      periodStart: "2026-08-01",
+      periodEnd: "2026-08-31",
+    };
+    const transaction = {
+      select: vi.fn()
+        .mockReturnValueOnce(queryReturning([]))
+        .mockReturnValueOnce(queryReturning([expiredToken]))
+        .mockReturnValueOnce(queryReturning([existingRun])),
+      execute: vi.fn().mockResolvedValue([]),
+    };
+    mocks.getDb.mockReturnValue({ transaction: (callback) => callback(transaction) });
+
+    await expect(confirmPayroll({ organizationId: "organization-id", actorProfileId: "actor-id", token: "expired-token" }))
+      .resolves.toEqual({ run: existingRun, duplicate: true });
+    expect(transaction.select).toHaveBeenCalledTimes(3);
   });
 });

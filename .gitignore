@@ -53,3 +53,14 @@ yarn-error.log*
 /test-results/
 /test-preferences.json
 /.check-scratch/
+
+# local time off verification evidence
+/attendance-employee-360.yaml
+/attendance-employee-manual.yaml
+/attendance-leave-employee.yaml
+/attendance-leave-manager.yaml
+/attendance-leave-partial-runtime.yaml
+/attendance-leave-partial.yaml
+/production-invalid-text.yaml
+/production-privacy-submit.yaml
+/validation-overlap.yaml

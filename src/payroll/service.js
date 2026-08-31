@@ -258,17 +258,20 @@ export async function confirmPayroll({ organizationId, actorProfileId, token }) 
 
     const [previewToken] = await transaction.select().from(payrollPreviewTokens)
       .where(and(eq(payrollPreviewTokens.organizationId, organizationId), eq(payrollPreviewTokens.tokenHash, tokenHash)));
-    if (!previewToken || previewToken.actorProfileId !== actorProfileId || previewToken.consumedAt || previewToken.expiresAt <= new Date()) {
+    if (!previewToken) {
       throw new PayrollError("PREVIEW_EXPIRED");
     }
     await transaction.execute(sql`SELECT id FROM organizations WHERE id = ${organizationId} FOR UPDATE`);
-    const preview = await loadPreview(transaction, organizationId);
     const [existingByPeriod] = await transaction.select().from(payrollRuns).where(and(
       eq(payrollRuns.organizationId, organizationId),
       eq(payrollRuns.periodStart, previewToken.periodStart),
       eq(payrollRuns.periodEnd, previewToken.periodEnd),
     ));
     if (existingByPeriod) return { run: existingByPeriod, duplicate: true };
+    if (previewToken.actorProfileId !== actorProfileId || previewToken.consumedAt || previewToken.expiresAt <= new Date()) {
+      throw new PayrollError("PREVIEW_EXPIRED");
+    }
+    const preview = await loadPreview(transaction, organizationId);
     if (preview.issues.length > 0 || preview.fingerprint !== previewToken.fingerprint || previewToken.calculationVersion !== PAYROLL_CALCULATION_VERSION) {
       throw new PayrollError("PREVIEW_STALE");
     }

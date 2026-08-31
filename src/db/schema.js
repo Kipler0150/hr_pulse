@@ -35,6 +35,7 @@ export const timecardEventAction = pgEnum("timecard_event_action", ["prepared", 
 export const earningType = pgEnum("earning_type", ["overtime"]);
 export const leaveType = pgEnum("leave_type", ["paid", "unpaid", "sick", "other"]);
 export const leaveStatus = pgEnum("leave_status", ["draft", "submitted", "approved", "declined", "cancelled"]);
+export const leaveEventAction = pgEnum("leave_event_action", ["submitted", "approved", "declined", "cancelled"]);
 export const payrollStatus = pgEnum("payroll_status", ["queued", "processing", "completed", "failed"]);
 export const payoutStatus = pgEnum("payout_status", ["pending", "processing", "finalized", "failed"]);
 export const payslipStatus = pgEnum("payslip_status", ["pending", "generated", "failed"]);
@@ -228,7 +229,7 @@ export const attendanceIntervalCorrections = pgTable("attendance_interval_correc
 export const timecards = pgTable("timecards", {
 	id: uuid("id").defaultRandom().primaryKey(),
 	organizationId: uuid("organization_id").notNull().references(() => organizations.id),
-	employeeId: uuid("employee_id").notNull().references(() => employees.id),
+	employeeId: uuid("employee_id").notNull(),
 	payrollScheduleId: uuid("payroll_schedule_id").notNull().references(() => payrollSchedules.id),
 	periodStart: date("period_start").notNull(),
 	periodEnd: date("period_end").notNull(),
@@ -328,6 +329,7 @@ export const mutationReceipts = pgTable("mutation_receipts", {
 	resultEntityType: varchar("result_entity_type", { length: 100 }).notNull(),
 	resultEntityId: uuid("result_entity_id").notNull(),
 	resultVersion: integer("result_version").notNull(),
+	resultSnapshot: jsonb("result_snapshot"),
 	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
 	uniqueIndex("mutation_receipts_operation_request_unique").on(table.organizationId, table.operation, table.requestId),
@@ -336,6 +338,7 @@ export const mutationReceipts = pgTable("mutation_receipts", {
 
 export const leaveRequests = pgTable("leave_requests", {
 	id: uuid("id").defaultRandom().primaryKey(),
+	organizationId: uuid("organization_id").notNull().references(() => organizations.id),
 	employeeId: uuid("employee_id").notNull().references(() => employees.id),
 	startDate: date("start_date").notNull(),
 	endDate: date("end_date").notNull(),
@@ -346,10 +349,47 @@ export const leaveRequests = pgTable("leave_requests", {
 	submittedAt: timestamp("submitted_at", { withTimezone: true }),
 	decisionAt: timestamp("decision_at", { withTimezone: true }),
 	cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+	version: integer("version").default(1).notNull(),
 	...timestamps,
 }, (table) => [
-	index("leave_requests_employee_idx").on(table.employeeId),
+	uniqueIndex("leave_requests_id_organization_unique").on(table.id, table.organizationId),
+	foreignKey({
+		columns: [table.employeeId, table.organizationId],
+		foreignColumns: [employees.id, employees.organizationId],
+		name: "leave_requests_employee_organization_fk",
+	}),
+	index("leave_requests_organization_submitted_idx").on(table.organizationId, table.submittedAt, table.id),
+	index("leave_requests_employee_submitted_idx").on(table.employeeId, table.submittedAt.desc(), table.id.desc()),
 	check("leave_date_order_check", sql`${table.endDate} >= ${table.startDate}`),
+	check("leave_requests_version_positive", sql`${table.version} > 0`),
+	check("leave_requests_reason_length_check", sql`${table.reason} IS NULL OR char_length(${table.reason}) <= 500`),
+]);
+
+export const leaveRequestEvents = pgTable("leave_request_events", {
+	id: uuid("id").defaultRandom().primaryKey(),
+	organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+	leaveRequestId: uuid("leave_request_id").notNull(),
+	requestVersion: integer("request_version").notNull(),
+	action: leaveEventAction("action").notNull(),
+	actorProfileId: uuid("actor_profile_id").notNull().references(() => profiles.id),
+	actorRole: varchar("actor_role", { length: 30 }).notNull(),
+	organizationTimezone: varchar("organization_timezone", { length: 100 }).notNull(),
+	wasLate: boolean("was_late").default(false).notNull(),
+	occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
+	priorStatus: leaveStatus("prior_status"),
+	resultingStatus: leaveStatus("resulting_status").notNull(),
+	decisionNote: varchar("decision_note", { length: 500 }),
+	fallbackReason: varchar("fallback_reason", { length: 500 }),
+}, (table) => [
+	uniqueIndex("leave_request_events_request_version_unique").on(table.leaveRequestId, table.requestVersion),
+	foreignKey({
+		columns: [table.leaveRequestId, table.organizationId],
+		foreignColumns: [leaveRequests.id, leaveRequests.organizationId],
+		name: "leave_request_events_request_organization_fk",
+	}),
+	index("leave_request_events_organization_order_idx").on(table.organizationId, table.occurredAt, table.id),
+	check("leave_request_events_note_length_check", sql`${table.decisionNote} IS NULL OR char_length(${table.decisionNote}) BETWEEN 1 AND 500`),
+	check("leave_request_events_fallback_length_check", sql`${table.fallbackReason} IS NULL OR char_length(${table.fallbackReason}) BETWEEN 1 AND 500`),
 ]);
 
 export const payrollRuns = pgTable("payroll_runs", {

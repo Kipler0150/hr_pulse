@@ -71,7 +71,8 @@ export function EmployeeForm({ employee = null }) {
         <Field><FieldLabel htmlFor="hire-date">Hire date</FieldLabel><Input defaultValue={employee?.hireDate} id="hire-date" name="hireDate" required type="date" /></Field>
         <Field><FieldLabel htmlFor="department">Department</FieldLabel><Input defaultValue={employee?.department ?? ""} id="department" name="department" /></Field>
         <Field><FieldLabel htmlFor="job-title">Job title</FieldLabel><Input defaultValue={employee?.title ?? ""} id="job-title" name="title" /></Field>
-        <Field><FieldLabel htmlFor="profile-email">Linked profile email</FieldLabel><Input id="profile-email" name="profileEmail" type="email" /><FieldDescription>Leave blank to keep this employee without self service access.</FieldDescription></Field>
+        <Field><FieldLabel htmlFor="profile-action">Profile access</FieldLabel><select className={selectClassName} defaultValue={employee ? "keep" : "none"} id="profile-action" name="profileAction"><option value="none">No self service access</option>{employee ? <option value="keep">Keep current profile link</option> : null}<option value="link">Link an active profile</option>{employee ? <option value="unlink">Remove profile link</option> : null}</select><FieldDescription>Linking requires an active provisioned profile in this organization.</FieldDescription></Field>
+        <Field><FieldLabel htmlFor="profile-email">Profile email for linking</FieldLabel><Input defaultValue={employee?.profileEmail ?? ""} id="profile-email" name="profileEmail" type="email" /><FieldDescription>Use this only when Profile access is set to link.</FieldDescription></Field>
       </FieldGroup>
       <ActionMessage state={state} />
       <Button disabled={pending} type="submit">{pending ? <Spinner data-icon="inline-start" /> : <SaveIcon data-icon="inline-start" />}{pending ? "Saving employee" : "Save employee"}</Button>

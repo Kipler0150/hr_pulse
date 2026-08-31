@@ -6,7 +6,7 @@ import { getAttendanceAccessState } from "@/attendance/access";
 import { getAttendanceReleaseState } from "@/attendance/config";
 import { serializeAttendanceError } from "@/attendance/errors";
 import { getAttendanceReview } from "@/attendance/queries";
-import { AttendanceStatus, LongIntervalWarning } from "@/app/(protected)/attendance/components/attendance-status";
+import { ApprovedLeaveMarker, AttendanceStatus, LongIntervalWarning } from "@/app/(protected)/attendance/components/attendance-status";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { buttonVariants, Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -89,13 +89,16 @@ export default async function AttendanceReviewPage({ searchParams }) {
           </Alert>
         ) : (
           <section aria-labelledby="records-title" className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-xl font-semibold" id="records-title">Daily attendance</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Intervals that started on {review.day.date} in {timezone}</p>
               </div>
               <p className="text-sm font-medium tabular-nums text-muted-foreground">{review.rows.length} record{review.rows.length === 1 ? "" : "s"} on this page</p>
-            </div>
+              </div>
+
+              {!review.leave.available ? <Alert variant="warning"><TriangleAlertIcon aria-hidden="true" /><AlertTitle>Leave data is temporarily unavailable</AlertTitle><AlertDescription>Attendance is current, but approved leave markers and conflict warnings are hidden until leave data loads again.</AlertDescription></Alert> : null}
+              {review.leave.markers.map((marker) => <ApprovedLeaveMarker includeEmployee key={marker.id} marker={marker} />)}
 
             {review.rows.length === 0 ? (
               <Card>

@@ -66,9 +66,20 @@ export async function saveEmployeeAction(previousState, formData) {
     const email = text(formData, "email").toLocaleLowerCase("en");
     if (!employeeNumber || !legalName || !email) throw new Error("Employee number, legal name, and email are required");
     const profileEmail = text(formData, "profileEmail").toLocaleLowerCase("en");
+    const requestedProfileAction = text(formData, "profileAction");
+    const profileAction = requestedProfileAction || (employeeId ? "keep" : profileEmail ? "link" : "none");
+    if (!["keep", "link", "none", "unlink"].includes(profileAction)) throw new Error("Employee profile link action is invalid");
     let profileId = null;
-    if (profileEmail) {
-      const [profile] = await database.select().from(profiles).where(eq(profiles.email, profileEmail));
+    if (profileAction === "keep" && employeeId) {
+      validateUuid(employeeId, "employeeId");
+      const [existing] = await database.select({ profileId: employees.profileId }).from(employees)
+        .where(and(eq(employees.id, employeeId), eq(employees.organizationId, context.organizationId)));
+      profileId = existing?.profileId ?? null;
+    } else if (profileAction === "link") {
+      if (!profileEmail) throw new Error("Enter a profile email to link");
+      const [profile] = await database.select({ id: profiles.id }).from(profiles)
+        .innerJoin(memberships, and(eq(memberships.profileId, profiles.id), eq(memberships.organizationId, context.organizationId)))
+        .where(and(eq(profiles.email, profileEmail), eq(memberships.status, "active")));
       if (!profile) throw new Error("No provisioned profile matches that exact email");
       profileId = profile.id;
     }
@@ -99,7 +110,7 @@ export async function saveEmployeeAction(previousState, formData) {
         action: employeeId ? "employee.updated" : "employee.created",
         entityType: "employee",
         entityId: saved.id,
-        metadata: { profileLinked: Boolean(profileId) },
+        metadata: { profileLinked: Boolean(profileId), profileAction },
       });
       return saved;
     });

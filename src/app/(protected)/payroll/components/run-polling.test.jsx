@@ -44,6 +44,15 @@ describe("RunPolling", () => {
     expect(screen.getByText("Showing the last known state. Automatic checks will continue.")).toBeVisible();
   });
 
+  it("refreshes when delayed or recovery eligibility changes without a status change", async () => {
+    fetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ status: "processing", delayed: true, recoveryEligible: true }) });
+    render(<RunPolling initialStatus="processing" runId="run-id" />);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+
+    expect(mocks.refresh).toHaveBeenCalledOnce();
+  });
+
   it("offers a keyboard operable manual refresh, covers: AC-10", async () => {
     vi.useRealTimers();
     const user = userEvent.setup();
