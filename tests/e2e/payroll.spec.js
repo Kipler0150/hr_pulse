@@ -133,7 +133,7 @@ test.describe("core payroll completion thread", () => {
 
     await page.goto("/payroll");
     await expect(page.getByRole("heading", { level: 1, name: "Complete payroll with a clear trail" })).toBeVisible();
-    await expect(page.getByRole("banner").getByText("Synthetic beta payroll")).toBeVisible();
+    await expect(page.getByRole("status").getByText("Synthetic beta payroll")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Setup readiness" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Payroll runs" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Preview next payroll" })).toBeVisible();

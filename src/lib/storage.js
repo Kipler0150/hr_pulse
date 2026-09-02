@@ -1,6 +1,7 @@
 import { createAdminClient } from "./supabase/admin";
 import { sha256 } from "@/payroll/fingerprint";
 import { PayrollError } from "@/payroll/errors";
+import { assertSelfServiceTestFailure } from "@/self-service/config";
 
 export function getPayslipsBucket() {
   const bucket = process.env.SUPABASE_PAYSLIPS_BUCKET;
@@ -38,6 +39,7 @@ export async function removePayslip(path) {
 
 export async function createPayslipDownloadUrl(path, expiresIn = 60) {
   const bucket = await assertPayslipsBucketPrivate();
+  assertSelfServiceTestFailure("download.signing");
   const { data, error } = await createAdminClient()
     .storage
     .from(bucket)

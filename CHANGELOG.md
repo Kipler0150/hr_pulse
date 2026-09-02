@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added employee check in and clock out with trusted database timestamps, audit history, duplicate-state handling, and organization-scoped attendance review (see spec 0006).
 - Added reviewable timecards, deterministic overtime calculations, manager approval and return workflows, administrator corrections, and approved payroll earning snapshots (see spec 0007).
 - Added employee time off requests, manager and administrator decisions, cancellation, workflow history, replay receipts, attendance leave markers, filters, cursor pagination, responsive detail views, and production feature shutdown (see spec 0008).
+- Added employee self service portal with profile editing, approved timecard history, payslip history with masked amounts, secure downloads, retry safe mutations, cursor pagination, and strict privacy controls and authorization (see spec 0009).
 
 ### Fixed
 - Protected payroll processing from stale workers releasing replacement leases and preserved confirmation idempotency across expired tokens (see spec 0005).

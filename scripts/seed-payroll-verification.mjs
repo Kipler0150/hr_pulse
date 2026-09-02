@@ -177,6 +177,12 @@ try {
         )
     `;
 
+    await transaction`
+      update employees
+      set status = 'inactive', updated_at = now()
+      where organization_id = ${organizationId}
+    `;
+
     for (let index = 0; index < 51; index += 1) {
       const period = monthPeriod(index);
       await insertRun(transaction, {
@@ -186,6 +192,55 @@ try {
         status: "completed",
         adminProfileId: administrator.id,
       });
+    }
+
+    const [completedEmployee] = await transaction`
+      select employee.id, employee.employee_number, employee.legal_name, setting.id as pay_setting_id
+      from employees employee
+      join pay_settings setting on setting.employee_id = employee.id
+      where employee.organization_id = ${organizationId}
+        and employee.employee_number = 'VERIFY-0001'
+    `;
+    const completedRuns = await transaction`
+      select id, period_end
+      from payroll_runs
+      where organization_id = ${organizationId} and status = 'completed'
+    `;
+    for (const completedRun of completedRuns) {
+      const completedPayoutId = stableUuid(`completed-payout:${completedRun.id}`);
+      const completedPayslipId = stableUuid(`completed-payslip:${completedRun.id}`);
+      const [existingPayout] = await transaction`
+        select id
+        from payouts
+        where payroll_run_id = ${completedRun.id} and employee_id = ${completedEmployee.id}
+      `;
+      let payoutId = existingPayout?.id;
+      if (!payoutId) {
+        const [createdPayout] = await transaction`
+        insert into payouts (
+          id, payroll_run_id, employee_id, pay_setting_id, employee_number, legal_name,
+          gross_amount_minor, deductions_amount_minor, net_amount_minor,
+          currency, currency_exponent, calculation_version, status, payroll_period_end
+        ) values (
+          ${completedPayoutId}, ${completedRun.id}, ${completedEmployee.id}, ${completedEmployee.pay_setting_id},
+          ${completedEmployee.employee_number}, ${completedEmployee.legal_name},
+          100000, 10000, 90000, 'PHP', 2, 'fixed-pay-v1', 'finalized', ${completedRun.period_end}
+        )
+        on conflict (payroll_run_id, employee_id) do nothing
+        returning id
+      `;
+        payoutId = createdPayout.id;
+      }
+      await transaction`
+        insert into payslips (
+          id, payout_id, status, storage_path, generated_at, template_version,
+          sha256, file_size_bytes, mime_type, immutable
+        ) values (
+          ${completedPayslipId}, ${payoutId}, 'generated', 'payroll-verification/completed.pdf',
+          now(), 1, ${digest(`completed-payslip:${completedRun.id}`)}, 0, 'application/pdf', true
+        )
+        on conflict (payout_id) do nothing
+      `;
     }
 
     const processingRunId = stableUuid("processing-run");
@@ -216,10 +271,10 @@ try {
         insert into payouts (
           id, payroll_run_id, employee_id, pay_setting_id, employee_number, legal_name,
           gross_amount_minor, deductions_amount_minor, net_amount_minor,
-          currency, currency_exponent, calculation_version, status
+          currency, currency_exponent, calculation_version, status, payroll_period_end
         ) values (
           ${payoutId}, ${processingRunId}, ${employee.id}, ${employee.pay_setting_id}, ${employee.employee_number}, ${employee.legal_name},
-          100000, 10000, 90000, 'PHP', 2, 'fixed-pay-v1', 'processing'
+          100000, 10000, 90000, 'PHP', 2, 'fixed-pay-v1', 'processing', '2023-01-31'
         )
         on conflict (payroll_run_id, employee_id) do nothing
       `;

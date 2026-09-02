@@ -115,9 +115,9 @@ export const employees = pgTable("employees", {
 	profileId: uuid("profile_id").references(() => profiles.id),
 	employeeNumber: varchar("employee_number", { length: 100 }).notNull(),
 	legalName: varchar("legal_name", { length: 200 }).notNull(),
-	preferredName: varchar("preferred_name", { length: 200 }),
+	preferredName: text("preferred_name"),
 	email: varchar("email", { length: 320 }).notNull(),
-	phone: varchar("phone", { length: 50 }),
+	phone: text("phone"),
 	hireDate: date("hire_date").notNull(),
 	department: varchar("department", { length: 200 }),
 	title: varchar("title", { length: 200 }),
@@ -125,6 +125,7 @@ export const employees = pgTable("employees", {
 	workLocation: varchar("work_location", { length: 200 }),
 	status: employeeStatus("status").default("active").notNull(),
 	terminationDate: date("termination_date"),
+	version: integer("version").default(1).notNull(),
 	...timestamps,
 }, (table) => [
 	uniqueIndex("employees_organization_number_unique").on(table.organizationId, table.employeeNumber),
@@ -139,6 +140,9 @@ export const employees = pgTable("employees", {
 	}),
 	check("employees_manager_not_self", sql`${table.managerId} IS NULL OR ${table.managerId} <> ${table.id}`),
 	check("employees_termination_date_check", sql`${table.terminationDate} IS NULL OR ${table.terminationDate} >= ${table.hireDate}`),
+	check("employees_version_positive", sql`${table.version} > 0`),
+	check("employees_preferred_name_valid", sql`${table.preferredName} IS NULL OR (pg_catalog.btrim(${table.preferredName}) <> '' AND char_length(${table.preferredName}) <= 200)`),
+	check("employees_phone_e164_or_null", sql`${table.phone} IS NULL OR ${table.phone} ~ '^[+][0-9]{7,15}$'`),
 ]);
 
 export const paySettings = pgTable("pay_settings", {
@@ -184,6 +188,7 @@ export const payrollPreviewTokens = pgTable("payroll_preview_tokens", {
 	periodEnd: date("period_end").notNull(),
 	fingerprint: varchar("fingerprint", { length: 64 }).notNull(),
 	calculationVersion: varchar("calculation_version", { length: 50 }).notNull(),
+	payrollPeriodEnd: date("payroll_period_end").notNull(),
 	tokenHash: varchar("token_hash", { length: 64 }).notNull(),
 	expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 	consumedAt: timestamp("consumed_at", { withTimezone: true }),
@@ -469,6 +474,7 @@ export const payouts = pgTable("payouts", {
 	currency: varchar("currency", { length: 3 }).notNull(),
 	currencyExponent: integer("currency_exponent").notNull(),
 	calculationVersion: varchar("calculation_version", { length: 50 }).notNull(),
+	payrollPeriodEnd: date("payroll_period_end").notNull(),
 	status: payoutStatus("status").default("pending").notNull(),
 	errorCode: varchar("error_code", { length: 100 }),
 	errorGuidance: text("error_guidance"),
@@ -476,6 +482,7 @@ export const payouts = pgTable("payouts", {
 }, (table) => [
 	uniqueIndex("payouts_run_employee_unique").on(table.payrollRunId, table.employeeId),
 	index("payouts_employee_idx").on(table.employeeId),
+	index("payouts_employee_period_cursor_idx").on(table.employeeId, table.payrollPeriodEnd.desc(), table.id.desc()),
 	check("payouts_gross_nonnegative", sql`${table.grossAmountMinor} >= 0`),
 	check("payouts_deductions_nonnegative", sql`${table.deductionsAmountMinor} >= 0`),
 	check("payouts_net_check", sql`${table.netAmountMinor} = ${table.grossAmountMinor} - ${table.deductionsAmountMinor}`),

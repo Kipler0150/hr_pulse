@@ -3,7 +3,7 @@ import { PayrollError, serializePayrollError } from "@/payroll/errors";
 
 export function jsonError(error) {
   if (error instanceof PayrollError) {
-    const status = error.code === "PAYROLL_FORBIDDEN" ? 403 : error.code === "RUN_NOT_RETRYABLE" ? 409 : 422;
+    const status = error.code === "PAYROLL_FORBIDDEN" ? 403 : error.code === "RUN_NOT_RETRYABLE" ? 409 : error.code === "PAYSLIP_UNAVAILABLE" ? 503 : 422;
     return NextResponse.json({ error: serializePayrollError(error) }, { status });
   }
   const message = error instanceof Error ? error.message : "Request failed";

@@ -3,12 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getDb: vi.fn(),
   requirePayrollAdministrator: vi.fn(),
+  requireSelfServiceContext: vi.fn(),
+  isSelfServiceEnabled: vi.fn(),
   verifyPayslipObject: vi.fn(),
   createPayslipDownloadUrl: vi.fn(),
 }));
 
 vi.mock("@/db", () => ({ getDb: mocks.getDb }));
 vi.mock("@/payroll/access", () => ({ requirePayrollAdministrator: mocks.requirePayrollAdministrator }));
+vi.mock("@/self-service/access", () => ({ requireSelfServiceContext: mocks.requireSelfServiceContext }));
+vi.mock("@/self-service/config", () => ({ isSelfServiceEnabled: mocks.isSelfServiceEnabled }));
 vi.mock("@/lib/storage", () => ({ verifyPayslipObject: mocks.verifyPayslipObject, createPayslipDownloadUrl: mocks.createPayslipDownloadUrl }));
 
 import { PayrollError } from "@/payroll/errors";
@@ -38,6 +42,7 @@ describe("private payslip download route", () => {
     vi.resetAllMocks();
     mocks.getDb.mockReturnValue(databaseReturning([row]));
     mocks.requirePayrollAdministrator.mockResolvedValue({ organizationId: "organization-id" });
+    mocks.isSelfServiceEnabled.mockReturnValue(false);
     mocks.verifyPayslipObject.mockResolvedValue(true);
     mocks.createPayslipDownloadUrl.mockResolvedValue("https://storage.invalid/signed");
   });
@@ -71,6 +76,20 @@ describe("private payslip download route", () => {
     expect(mocks.verifyPayslipObject).not.toHaveBeenCalled();
   });
 
+  it("returns a structured denial when enabled self service has no employee context, covers: AC-9", async () => {
+    mocks.requirePayrollAdministrator.mockRejectedValue(new PayrollError("PAYROLL_FORBIDDEN"));
+    mocks.isSelfServiceEnabled.mockReturnValue(true);
+    mocks.requireSelfServiceContext.mockRejectedValue(new Error("employee access unavailable"));
+
+    const response = await GET(new Request("http://localhost"), { params: Promise.resolve({ id: payslipId }) });
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body).toMatchObject({ error: { code: "PAYROLL_FORBIDDEN" } });
+    expect(mocks.getDb).not.toHaveBeenCalled();
+    expect(mocks.verifyPayslipObject).not.toHaveBeenCalled();
+  });
+
   it("hides a generated payslip that belongs to another selected organization, covers: AC-7 and AC-9", async () => {
     mocks.requirePayrollAdministrator.mockResolvedValue({ organizationId: "other-organization-id" });
     mocks.getDb.mockReturnValue(databaseReturning([]));
@@ -87,7 +106,31 @@ describe("private payslip download route", () => {
 
     const response = await GET(new Request("http://localhost"), { params: Promise.resolve({ id: payslipId }) });
 
-    expect(response.status).toBe(422);
+    expect(response.status).toBe(503);
+    expect(mocks.createPayslipDownloadUrl).not.toHaveBeenCalled();
+  });
+
+  it("refuses a generated payslip with no storage path without signing a link, covers: AC-8", async () => {
+    mocks.getDb.mockReturnValue(databaseReturning([{ ...row, payslip: { ...row.payslip, storagePath: null } }]));
+
+    const response = await GET(new Request("http://localhost"), { params: Promise.resolve({ id: payslipId }) });
+    const body = await response.text();
+
+    expect(response.status).toBe(503);
+    expect(body).not.toContain("url");
+    expect(mocks.verifyPayslipObject).not.toHaveBeenCalled();
+    expect(mocks.createPayslipDownloadUrl).not.toHaveBeenCalled();
+  });
+
+  it("returns safe integrity guidance when checksum verification fails without signing a link, covers: AC-8", async () => {
+    mocks.verifyPayslipObject.mockRejectedValue(new PayrollError("PAYSLIP_INTEGRITY_FAILED"));
+
+    const response = await GET(new Request("http://localhost"), { params: Promise.resolve({ id: payslipId }) });
+    const body = await response.text();
+
+    expect(response.status).toBe(503);
+    expect(body).toContain("temporarily unavailable");
+    expect(body).not.toContain("url");
     expect(mocks.createPayslipDownloadUrl).not.toHaveBeenCalled();
   });
 
@@ -97,7 +140,7 @@ describe("private payslip download route", () => {
     const response = await GET(new Request("http://localhost"), { params: Promise.resolve({ id: payslipId }) });
     const body = await response.json();
 
-    expect(response.status).toBe(422);
+    expect(response.status).toBe(503);
     expect(JSON.stringify(body)).not.toContain("storage provider secret response");
   });
 });

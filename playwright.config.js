@@ -14,7 +14,7 @@ export default defineConfig({
   webServer: {
     command: `npm run dev -- -p ${port}`,
     url: baseURL,
-    reuseExistingServer: true,
+    reuseExistingServer: false,
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 });

@@ -14,7 +14,7 @@ export const metadata = { title: "Access pending | HR Pulse" };
 export default async function PendingAccessPage() {
   const state = await getAccessState();
   if (!state.user) redirect("/sign-in");
-  if (state.profile?.status === "active" && state.memberships.length) redirect("/dashboard");
+  if (state.profile?.status === "active" && state.memberships.some((membership) => membership.employeeId)) redirect("/dashboard");
 
   return (
     <AuthShell detail="Your account is secure while an administrator completes the organization connection." eyebrow="Provisioned access" title="A clear path into your workspace.">

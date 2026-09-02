@@ -10,6 +10,7 @@
     "test": "vitest run src",
     "test:e2e": "dotenv -e .env.local -- playwright test",
     "verify:payroll:seed": "dotenv -e .env.local -- node scripts/seed-payroll-verification.mjs",
+    "verify:self-service:release": "dotenv -e .env.local -- node scripts/verify-self-service-release-migration-privacy.mjs",
     "verify:attendance:schema": "node scripts/verify-attendance-schema.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"

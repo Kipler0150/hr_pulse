@@ -60,6 +60,8 @@ export async function saveEmployeeAction(previousState, formData) {
     const context = await requirePayrollAdministrator();
     const database = getDb();
     const employeeId = text(formData, "employeeId") || null;
+    const expectedVersion = employeeId ? Number(text(formData, "expectedVersion")) : null;
+    if (employeeId && (!Number.isInteger(expectedVersion) || expectedVersion < 1)) throw new Error("This employee changed. Refresh and try again");
     const hireDate = validateDate(text(formData, "hireDate"), "hireDate");
     const employeeNumber = text(formData, "employeeNumber");
     const legalName = text(formData, "legalName");
@@ -99,11 +101,14 @@ export async function saveEmployeeAction(previousState, formData) {
       let saved;
       if (employeeId) {
         validateUuid(employeeId, "employeeId");
-        [saved] = await transaction.update(employees).set(values).where(and(eq(employees.id, employeeId), eq(employees.organizationId, context.organizationId))).returning();
+        [saved] = await transaction.update(employees).set({ ...values, version: sql`${employees.version} + 1` }).where(and(eq(employees.id, employeeId), eq(employees.organizationId, context.organizationId), eq(employees.version, expectedVersion))).returning();
       } else {
         [saved] = await transaction.insert(employees).values(values).returning();
       }
       if (!saved) throw new Error("Employee not found");
+      if (saved.profileId) {
+        await transaction.update(profiles).set({ displayName: saved.preferredName || saved.legalName, updatedAt: new Date() }).where(eq(profiles.id, saved.profileId));
+      }
       await writeAuditEvent(transaction, {
         organizationId: context.organizationId,
         actorProfileId: context.profile.id,
@@ -122,10 +127,12 @@ export async function saveEmployeeAction(previousState, formData) {
 export async function deactivateEmployeeAction(formData) {
   const context = await requirePayrollAdministrator();
   const employeeId = validateUuid(text(formData, "employeeId"), "employeeId");
+  const expectedVersion = Number(text(formData, "expectedVersion"));
+  if (!Number.isInteger(expectedVersion) || expectedVersion < 1) throw new Error("This employee changed. Refresh and try again");
   const database = getDb();
   await database.transaction(async (transaction) => {
-    const [employee] = await transaction.update(employees).set({ status: "inactive", updatedAt: new Date() })
-      .where(and(eq(employees.id, employeeId), eq(employees.organizationId, context.organizationId), eq(employees.status, "active"))).returning();
+    const [employee] = await transaction.update(employees).set({ status: "inactive", version: sql`${employees.version} + 1`, updatedAt: new Date() })
+      .where(and(eq(employees.id, employeeId), eq(employees.organizationId, context.organizationId), eq(employees.status, "active"), eq(employees.version, expectedVersion))).returning();
     if (!employee) throw new Error("This employee is not active or could not be found");
     await writeAuditEvent(transaction, {
       organizationId: context.organizationId, actorProfileId: context.profile.id, action: "employee.deactivated", entityType: "employee", entityId: employee.id,

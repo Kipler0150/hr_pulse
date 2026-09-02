@@ -23,7 +23,7 @@ const todayParts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", y
 const today = `${todayParts.find((part) => part.type === "year").value}-${todayParts.find((part) => part.type === "month").value}-${todayParts.find((part) => part.type === "day").value}`;
 const periodStartDate = new Date(`${addDays(today, -1)}T00:00:00Z`);
 periodStartDate.setUTCDate(periodStartDate.getUTCDate() - ((periodStartDate.getUTCDay() + 6) % 7));
-const periodStart = formatDate(periodStartDate);
+const periodStart = addDays(formatDate(periodStartDate), -7);
 const periodEnd = addDays(periodStart, 6);
 const intervalDate = addDays(periodStart, 1);
 const intervalStart = `${intervalDate}T00:00:00Z`;
@@ -88,7 +88,7 @@ test.describe("overtime and timecards enabled workflow", () => {
 
     const [manager] = await sql`
       insert into employees (organization_id, profile_id, employee_number, legal_name, email, hire_date, status)
-      values (${organization.id}, ${accounts.manager.profileId}, 'OT-MGR', 'Morgan Manager', ${accounts.manager.email}, '2026-01-01', 'inactive')
+      values (${organization.id}, ${accounts.manager.profileId}, 'OT-MGR', 'Morgan Manager', ${accounts.manager.email}, '2026-01-01', 'active')
       returning id
     `;
     const [employee] = await sql`
@@ -100,6 +100,10 @@ test.describe("overtime and timecards enabled workflow", () => {
       insert into payroll_schedules (organization_id, frequency, anchor_start_date, effective_start_date, version)
       values (${organization.id}, 'weekly', ${periodStart}, ${periodStart}, 1)
     `;
+    await sql`
+      insert into pay_settings (employee_id, effective_from, pay_frequency, gross_amount_minor, currency, overtime_eligible, version)
+      values (${manager.id}, ${periodStart}, 'weekly', 100000, 'PHP', false, 1)
+    `;
     const [interval] = await sql`
       insert into attendance_intervals (employee_id, clock_in, clock_out, source, status)
       values (${employee.id}, ${intervalStart}, ${intervalEnd}, 'employee', 'completed')
@@ -109,6 +113,7 @@ test.describe("overtime and timecards enabled workflow", () => {
     fixture = {
       accounts,
       employeeId: employee.id,
+      managerId: manager.id,
       intervalId: interval.id,
       organizationId: organization.id,
       profileIds: Object.values(accounts).map(({ profileId }) => profileId),
@@ -319,6 +324,7 @@ test.describe("overtime and timecards enabled workflow", () => {
     ]);
     await expect(sql`update timecards set worked_seconds = worked_seconds + 1 where id = ${timecardId}`).rejects.toThrow(/immutable/);
 
+    await sql`update employees set status = 'inactive' where id = ${fixture.managerId}`;
     await signIn(page, fixture.accounts.administrator);
     await page.goto("/payroll/preview");
     await page.getByRole("button", { name: "Preview next payroll" }).click();

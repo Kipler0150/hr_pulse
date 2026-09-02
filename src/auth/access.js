@@ -54,6 +54,7 @@ export async function getAccessState({ organizationId } = {}) {
     .leftJoin(employees, and(
       eq(employees.organizationId, memberships.organizationId),
       eq(employees.profileId, profile.id),
+      eq(employees.status, "active"),
     ))
     .where(eq(memberships.profileId, profile.id));
 

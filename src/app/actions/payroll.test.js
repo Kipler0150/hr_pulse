@@ -116,6 +116,7 @@ function paySettingValidationDatabase({ organization, schedule }) {
 function paySettingForm(overrides = {}) {
   const formData = new FormData();
   formData.set("employeeId", employeeId);
+  formData.set("expectedVersion", "1");
   formData.set("requestId", "123e4567-e89b-12d3-a456-426614174003");
   formData.set("expectedVersion", "0");
   formData.set("payFrequency", "monthly");
@@ -128,6 +129,7 @@ function paySettingForm(overrides = {}) {
 function employeeForm(overrides = {}) {
   const formData = new FormData();
   formData.set("employeeId", employeeId);
+  formData.set("expectedVersion", "1");
   formData.set("employeeNumber", "EMP-001");
   formData.set("legalName", "Test Employee");
   formData.set("email", "employee@example.test");
@@ -149,6 +151,7 @@ describe("payroll server actions", () => {
     mocks.getDb.mockReturnValue(database);
     const formData = new FormData();
     formData.set("employeeId", employeeId);
+    formData.set("expectedVersion", "1");
     formData.set("employeeNumber", "EMP-001");
     formData.set("legalName", "Updated Employee");
     formData.set("email", "updated@example.test");
@@ -352,6 +355,7 @@ describe("payroll server actions", () => {
     mocks.getDb.mockReturnValue(employeeTransaction([{ id: employeeId, status: "inactive" }]));
     const formData = new FormData();
     formData.set("employeeId", employeeId);
+    formData.set("expectedVersion", "1");
 
     await deactivateEmployeeAction(formData);
 
@@ -373,6 +377,7 @@ describe("payroll server actions", () => {
     mocks.getDb.mockReturnValue(employeeTransaction([]));
     const formData = new FormData();
     formData.set("employeeId", employeeId);
+    formData.set("expectedVersion", "1");
 
     await expect(deactivateEmployeeAction(formData)).rejects.toThrow("This employee is not active or could not be found");
     expect(mocks.writeAuditEvent).not.toHaveBeenCalled();

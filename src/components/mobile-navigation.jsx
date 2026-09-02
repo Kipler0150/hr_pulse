@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Building2Icon, CalendarClockIcon, ClipboardCheckIcon, LandmarkIcon, LayoutDashboardIcon, MenuIcon } from "lucide-react";
+import { Building2Icon, CalendarClockIcon, ClipboardCheckIcon, LandmarkIcon, LayoutDashboardIcon, MenuIcon, UserRoundIcon } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
-export function MobileNavigation({ attendance = null, organizationName, switchOrganization, footer, payroll = false, timecards = null, timeOff = null }) {
+export function MobileNavigation({ attendance = null, organizationName, switchOrganization, footer, payroll = false, selfService = null, timecards = null, timeOff = null }) {
   return (
     <Sheet>
       <SheetTrigger render={<Button aria-label="Open navigation" size="icon-comfortable" variant="ghost" />}>
@@ -54,6 +54,7 @@ export function MobileNavigation({ attendance = null, organizationName, switchOr
               Time off
             </Link>
           ) : null}
+          {selfService ? <Link className={cn(buttonVariants({ size: "comfortable", variant: "ghost" }), "justify-start")} data-slot="navigation-link" href={selfService}><UserRoundIcon data-icon="inline-start" />My self service</Link> : null}
           {switchOrganization ? (
             <Link className={cn(buttonVariants({ size: "comfortable", variant: "ghost" }), "justify-start")} data-slot="navigation-link" href="/choose-organization">
               <Building2Icon data-icon="inline-start" />

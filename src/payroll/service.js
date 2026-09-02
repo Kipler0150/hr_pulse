@@ -231,6 +231,7 @@ export async function previewPayroll({ organizationId, actorProfileId, persistTo
       periodEnd: preview.period.periodEnd,
       fingerprint: preview.fingerprint,
       calculationVersion: PAYROLL_CALCULATION_VERSION,
+      payrollPeriodEnd: preview.period.periodEnd,
       tokenHash,
       expiresAt,
     });
@@ -318,6 +319,7 @@ export async function confirmPayroll({ organizationId, actorProfileId, token }) 
         currency: preview.organization.defaultCurrency,
         currencyExponent: getCurrencyExponent(preview.organization.defaultCurrency),
         calculationVersion: PAYROLL_CALCULATION_VERSION,
+        payrollPeriodEnd: run.periodEnd,
       }).returning();
       if (row.deductions.length > 0) {
         await transaction.insert(payoutDeductionLines).values(row.deductions.map((deduction) => ({

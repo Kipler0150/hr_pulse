@@ -89,6 +89,11 @@ export const PAYROLL_ERROR_CATALOG = Object.freeze({
     guidance: "Retry the failed payroll run.",
     retryable: true,
   },
+  PAYSLIP_UNAVAILABLE: {
+    message: "This payslip is temporarily unavailable.",
+    guidance: "Try again later.",
+    retryable: true,
+  },
   ORGANIZATION_INACTIVE: {
     message: "Payroll is unavailable while this organization is inactive.",
     guidance: "Reactivate the organization before retrying payroll.",

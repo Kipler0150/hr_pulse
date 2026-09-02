@@ -63,6 +63,7 @@ export function EmployeeForm({ employee = null }) {
   return (
     <form action={action} className="flex flex-col gap-5">
       {employee ? <input name="employeeId" type="hidden" value={employee.id} /> : null}
+      {employee ? <input name="expectedVersion" type="hidden" value={employee.version} /> : null}
       <FieldGroup>
         <Field><FieldLabel htmlFor="employee-number">Employee number</FieldLabel><Input defaultValue={employee?.employeeNumber} id="employee-number" name="employeeNumber" required /></Field>
         <Field><FieldLabel htmlFor="legal-name">Legal name</FieldLabel><Input autoComplete="name" defaultValue={employee?.legalName} id="legal-name" name="legalName" required /></Field>
