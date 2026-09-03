@@ -10,7 +10,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 
-export function AuthForm({ action, mode, returnTo = "/dashboard", initialState = null }) {
+export function AuthForm({ action, mode, requestId = null, returnTo = "/dashboard", initialState = null }) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const isSignIn = mode === "sign-in";
   const isReset = mode === "reset";
@@ -30,6 +30,7 @@ export function AuthForm({ action, mode, returnTo = "/dashboard", initialState =
       </div>
       <form action={formAction} className="flex flex-col gap-5" noValidate>
         <input name="returnTo" type="hidden" value={returnTo} />
+        {isSignIn && requestId ? <input name="requestId" type="hidden" value={requestId} /> : null}
         <FieldGroup>
           {!isReset ? <AuthField autoComplete="email" label="Work email" name="email" required type="email" /> : null}
           {isSignIn ? <AuthField autoComplete="current-password" label="Password" name="password" required type="password" /> : null}

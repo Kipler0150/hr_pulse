@@ -9,6 +9,7 @@ import {
   serializeAttendanceError,
 } from "@/attendance/errors";
 import { reportAttendanceFailure } from "@/attendance/telemetry";
+import { recordProductMilestone } from "@/product-operations/integration";
 
 async function runAttendanceMutation({ action, rpc, successMessage }) {
   let context;
@@ -23,6 +24,14 @@ async function runAttendanceMutation({ action, rpc, successMessage }) {
 
     revalidatePath("/attendance");
     revalidatePath("/attendance/review");
+    await recordProductMilestone({
+      organizationId: context.organizationId,
+      eventName: action === "attendance.check_in" ? "attendance.checked_in" : "attendance.clocked_out",
+      workflowArea: "attendance",
+      resultCategory: "success",
+      occurrenceIdentity: `${interval.id}:${interval.status}`,
+      analyticsProfileId: context.profile?.id,
+    });
     return {
       success: true,
       message: successMessage,

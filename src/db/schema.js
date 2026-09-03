@@ -41,6 +41,11 @@ export const payoutStatus = pgEnum("payout_status", ["pending", "processing", "f
 export const payslipStatus = pgEnum("payslip_status", ["pending", "generated", "failed"]);
 export const queueDeliveryStatus = pgEnum("queue_delivery_status", ["pending", "submitted", "failed"]);
 export const payrollAttemptOutcome = pgEnum("payroll_attempt_outcome", ["processing", "succeeded", "retryable_failure", "failed"]);
+export const privacyConsentType = pgEnum("privacy_consent_type", ["product_analytics"]);
+export const privacyRequestType = pgEnum("privacy_request_type", ["deletion"]);
+export const privacyRequestStatus = pgEnum("privacy_request_status", ["submitted", "under_review", "approved", "rejected", "scheduled", "completed", "failed"]);
+export const privacyRequestResolution = pgEnum("privacy_request_resolution", ["administrator_rejected", "employee_withdrawn"]);
+export const privacyDeletionStatus = pgEnum("privacy_deletion_status", ["processing", "completed", "failed"]);
 
 export const organizations = pgTable("organizations", {
 	id: uuid("id").defaultRandom().primaryKey(),
@@ -543,6 +548,147 @@ export const auditEvents = pgTable("audit_events", {
 	action: varchar("action", { length: 100 }).notNull(),
 	entityType: varchar("entity_type", { length: 100 }).notNull(),
 	entityId: uuid("entity_id").notNull(),
+	result: varchar("result", { length: 30 }).default("success").notNull(),
+	actorLabelSnapshot: varchar("actor_label_snapshot", { length: 200 }),
+	actorRoleSnapshot: varchar("actor_role_snapshot", { length: 30 }),
+	correlationId: uuid("correlation_id"),
 	metadata: jsonb("metadata").notNull().default({}),
 	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [index("audit_events_organization_created_idx").on(table.organizationId, table.createdAt)]);
+}, (table) => [
+	index("audit_events_organization_created_idx").on(table.organizationId, table.createdAt.desc(), table.id.desc()),
+	index("audit_events_organization_action_created_idx").on(table.organizationId, table.action, table.createdAt.desc(), table.id.desc()),
+	check("audit_events_action_check", sql`${table.action} IN ('organization.created', 'organization.updated', 'membership.created', 'membership.role_changed', 'membership.deactivated', 'employee.created', 'employee.updated', 'employee.deactivated', 'attendance.checked_in', 'attendance.clocked_out', 'timecard.prepared', 'timecard.submitted', 'timecard.returned', 'timecard.approved', 'timecard.configuration_returned', 'time_off.submitted', 'time_off.cancelled', 'time_off.approved', 'time_off.declined', 'payroll.preview_created', 'payroll.confirmed', 'payroll.queued', 'payroll.processing', 'payroll.completed', 'payroll.failed', 'payroll.retry_requested', 'self_service.profile_updated', 'auth.sign_in_succeeded', 'auth.sign_in_failed', 'auth.sign_out', 'access.organization_selected', 'access.authorization_denied', 'release_control.changed', 'organization.founded', 'membership.assigned', 'payroll_schedule.changed', 'pay_setting.created', 'payroll.recovered', 'overtime_policy.saved', 'attendance_interval.corrected', 'payroll.timecards_consumed', 'payroll.preview.blocked', 'timecard.resubmitted', 'privacy.consent_changed', 'privacy.deletion_requested', 'privacy.deletion_withdrawn', 'privacy.request_review_started', 'privacy.request_decided', 'privacy.hold_placed', 'privacy.hold_released', 'privacy.deletion_completed', 'privacy.deletion_failed')`),
+	check("audit_events_result_check", sql`${table.result} IN ('success', 'expected_error', 'unexpected_error', 'denied')`),
+	check("audit_events_entity_type_check", sql`${table.entityType} IN ('organization', 'membership', 'employee', 'attendance_interval', 'timecard', 'leave_request', 'payroll_run', 'payout', 'payslip', 'profile', 'access', 'release_control', 'pay_setting', 'payroll_preview', 'payroll_schedule', 'overtime_policy', 'attendance_correction')`),
+]);
+
+export const productEvents = pgTable("product_events", {
+	id: uuid("id").defaultRandom().primaryKey(),
+	organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+	analyticsSubjectKey: varchar("analytics_subject_key", { length: 64 }),
+	eventName: varchar("event_name", { length: 100 }).notNull(),
+	schemaVersion: integer("schema_version").notNull(),
+	occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
+	workflowArea: varchar("workflow_area", { length: 30 }),
+	resultCategory: varchar("result_category", { length: 30 }),
+	durationMs: integer("duration_ms"),
+	dedupeKey: varchar("dedupe_key", { length: 64 }).notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	uniqueIndex("product_events_organization_dedupe_unique").on(table.organizationId, table.dedupeKey),
+	index("product_events_organization_occurred_idx").on(table.organizationId, table.occurredAt.desc(), table.id.desc()),
+	index("product_events_organization_event_occurred_idx").on(table.organizationId, table.eventName, table.occurredAt.desc()),
+	index("product_events_organization_subject_occurred_idx").on(table.organizationId, table.analyticsSubjectKey, table.occurredAt.desc(), table.id.desc()),
+	check("product_events_schema_version_positive", sql`${table.schemaVersion} > 0`),
+	check("product_events_event_name_check", sql`${table.eventName} IN ('auth.sign_in_succeeded', 'setup.organization_completed', 'setup.employee_created', 'attendance.checked_in', 'attendance.clocked_out', 'time_off.submitted', 'time_off.approved', 'time_off.declined', 'timecard.submitted', 'timecard.approved', 'payroll.preview_created', 'payroll.confirmed', 'payroll.completed', 'payroll.failed', 'self_service.profile_updated', 'self_service.payslip_downloaded')`),
+	check("product_events_duration_bounded", sql`${table.durationMs} IS NULL OR ${table.durationMs} BETWEEN 0 AND 3600000`),
+	check("product_events_result_category_check", sql`${table.resultCategory} IS NULL OR ${table.resultCategory} IN ('success', 'expected_error', 'unexpected_error')`),
+	check("product_events_workflow_area_check", sql`${table.workflowArea} IS NULL OR ${table.workflowArea} IN ('auth', 'setup', 'attendance', 'time_off', 'timecards', 'payroll', 'self_service')`),
+]);
+
+export const operationFailures = pgTable("operation_failures", {
+	id: uuid("id").defaultRandom().primaryKey(),
+	organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+	analyticsSubjectKey: varchar("analytics_subject_key", { length: 64 }),
+	operation: varchar("operation", { length: 100 }).notNull(),
+	safeCode: varchar("safe_code", { length: 100 }).notNull(),
+	groupKey: varchar("group_key", { length: 64 }).notNull(),
+	firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).defaultNow().notNull(),
+	lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull(),
+	occurrenceCount: integer("occurrence_count").default(1).notNull(),
+	affectedEntityType: varchar("affected_entity_type", { length: 100 }),
+	affectedEntityId: uuid("affected_entity_id"),
+	workflowStatus: varchar("workflow_status", { length: 50 }),
+	recoveryAvailable: boolean("recovery_available").default(false).notNull(),
+	correlationId: uuid("correlation_id"),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+	uniqueIndex("operation_failures_organization_group_unique").on(table.organizationId, table.groupKey),
+	index("operation_failures_organization_last_seen_idx").on(table.organizationId, table.lastSeenAt.desc(), table.id.desc()),
+	index("operation_failures_organization_subject_last_seen_idx").on(table.organizationId, table.analyticsSubjectKey, table.lastSeenAt.desc(), table.id.desc()),
+	check("operation_failures_operation_check", sql`${table.operation} IN ('auth.sign_in', 'auth.sign_out', 'auth.organization_select', 'setup.organization_create', 'setup.employee_save', 'attendance.check_in', 'attendance.clock_out', 'attendance.review', 'attendance_interval.correct', 'time_off.submit', 'time_off.cancel', 'time_off.approve', 'time_off.decline', 'timecard.prepare', 'timecard.submit', 'timecard.return', 'timecard.approve', 'overtime_policy.save', 'payroll.preview', 'payroll.confirm', 'payroll.queue', 'payroll.calculation', 'payroll.recover', 'payroll.retry', 'self_service.profile_update', 'self_service.payslip_download')`),
+	check("operation_failures_safe_code_check", sql`${table.safeCode} IN ('OPERATION_UNAVAILABLE', 'PAYROLL_DISABLED', 'PAYSLIPS_BUCKET_UNAVAILABLE', 'PAYROLL_FORBIDDEN', 'PAYROLL_PERIOD_BLOCKED', 'NO_CLOSED_PERIOD', 'NO_ELIGIBLE_EMPLOYEES', 'EMPLOYEE_LIMIT_EXCEEDED', 'PAY_SETTING_MISSING', 'TIMECARD_APPROVAL_MISSING', 'CURRENCY_MISMATCH', 'DEDUCTIONS_EXCEED_GROSS', 'PREVIEW_EXPIRED', 'PREVIEW_STALE', 'RUN_NOT_RETRYABLE', 'PROCESSING_LEASE_ACTIVE', 'QUEUE_DELIVERY_FAILED', 'PAYSLIP_GENERATION_FAILED', 'PAYSLIP_INTEGRITY_FAILED', 'PAYSLIP_UNAVAILABLE', 'PAYROLL_PROCESSING_FAILED', 'PAYROLL_FAILED', 'ATTENDANCE_FORBIDDEN', 'EMPLOYEE_NOT_ELIGIBLE', 'ALREADY_CHECKED_IN', 'NOT_CHECKED_IN', 'ATTENDANCE_REQUEST_FAILED', 'TIME_OFF_FORBIDDEN', 'TIME_OFF_UNAVAILABLE', 'TIME_OFF_REQUEST_FAILED', 'OVERTIME_FORBIDDEN', 'TIMECARD_INVALID_STATE', 'TIMECARD_STALE', 'OVERTIME_REQUEST_FAILED', 'CONFIGURATION_DRIFT', 'ADMINISTRATOR_FALLBACK', 'ATTENDANCE_CORRECTION', 'SELF_SERVICE_ACCESS_UNAVAILABLE', 'SELF_SERVICE_UNAVAILABLE')`),
+	check("operation_failures_count_nonnegative", sql`${table.occurrenceCount} >= 1`),
+	check("operation_failures_time_order", sql`${table.lastSeenAt} >= ${table.firstSeenAt}`),
+]);
+
+export const privacyConsents = pgTable("privacy_consents", {
+	id: uuid("id").defaultRandom().primaryKey(),
+	organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+	profileId: uuid("profile_id").notNull().references(() => profiles.id),
+	consentType: privacyConsentType("consent_type").notNull().default("product_analytics"),
+	granted: boolean("granted").notNull(),
+	policyVersion: varchar("policy_version", { length: 50 }).notNull(),
+	idempotencyKey: varchar("idempotency_key", { length: 64 }).notNull(),
+	recordedAt: timestamp("recorded_at", { withTimezone: true }).defaultNow().notNull(),
+	supersededAt: timestamp("superseded_at", { withTimezone: true }),
+}, (table) => [
+	index("privacy_consents_organization_profile_idx").on(table.organizationId, table.profileId, table.recordedAt.desc()),
+	uniqueIndex("privacy_consents_idempotency_unique").on(table.organizationId, table.profileId, table.idempotencyKey),
+	uniqueIndex("privacy_consents_current_unique").on(table.organizationId, table.profileId, table.consentType).where(sql`${table.supersededAt} IS NULL`),
+]);
+
+export const privacyRequests = pgTable("privacy_requests", {
+	id: uuid("id").defaultRandom().primaryKey(),
+	organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+	profileId: uuid("profile_id").notNull().references(() => profiles.id),
+	requestType: privacyRequestType("request_type").notNull().default("deletion"),
+	status: privacyRequestStatus("status").notNull().default("submitted"),
+	resolutionCode: privacyRequestResolution("resolution_code"),
+	policyVersion: varchar("policy_version", { length: 50 }).notNull(),
+	idempotencyKey: varchar("idempotency_key", { length: 64 }).notNull(),
+	submittedAt: timestamp("submitted_at", { withTimezone: true }).defaultNow().notNull(),
+	reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+	reviewedByProfileId: uuid("reviewed_by_profile_id").references(() => profiles.id),
+	scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+	completedAt: timestamp("completed_at", { withTimezone: true }),
+	failedAt: timestamp("failed_at", { withTimezone: true }),
+	failureCode: varchar("failure_code", { length: 100 }),
+	lastActionIdempotencyKey: varchar("last_action_idempotency_key", { length: 64 }),
+	deletedCounts: jsonb("deleted_counts").notNull().default({}),
+	...timestamps,
+}, (table) => [
+	index("privacy_requests_organization_status_idx").on(table.organizationId, table.status, table.submittedAt.desc(), table.id.desc()),
+	index("privacy_requests_profile_submitted_idx").on(table.profileId, table.submittedAt.desc(), table.id.desc()),
+	uniqueIndex("privacy_requests_idempotency_unique").on(table.organizationId, table.profileId, table.idempotencyKey),
+	uniqueIndex("privacy_requests_open_unique").on(table.organizationId, table.profileId).where(sql`${table.status} IN ('submitted', 'under_review', 'approved', 'scheduled', 'failed')`),
+	check("privacy_requests_failure_code_safe", sql`${table.failureCode} IS NULL OR ${table.failureCode} ~ '^[A-Z0-9_]{1,100}$'`),
+]);
+
+export const privacyHolds = pgTable("privacy_holds", {
+	id: uuid("id").defaultRandom().primaryKey(),
+	organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+	profileId: uuid("profile_id").notNull().references(() => profiles.id),
+	placedByProfileId: uuid("placed_by_profile_id").notNull().references(() => profiles.id),
+	releasedByProfileId: uuid("released_by_profile_id").references(() => profiles.id),
+	placedAt: timestamp("placed_at", { withTimezone: true }).defaultNow().notNull(),
+	releasedAt: timestamp("released_at", { withTimezone: true }),
+	active: boolean("active").notNull().default(true),
+	lastActionIdempotencyKey: varchar("last_action_idempotency_key", { length: 64 }),
+	...timestamps,
+}, (table) => [
+	index("privacy_holds_organization_profile_idx").on(table.organizationId, table.profileId, table.active),
+	uniqueIndex("privacy_holds_active_unique").on(table.organizationId, table.profileId).where(sql`${table.active} = true`),
+	check("privacy_holds_release_consistency", sql`(${table.active} = true AND ${table.releasedAt} IS NULL AND ${table.releasedByProfileId} IS NULL) OR (${table.active} = false AND ${table.releasedAt} IS NOT NULL AND ${table.releasedByProfileId} IS NOT NULL)`),
+]);
+
+export const privacyDeletionExecutions = pgTable("privacy_deletion_executions", {
+	id: uuid("id").defaultRandom().primaryKey(),
+	organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+	privacyRequestId: uuid("privacy_request_id").references(() => privacyRequests.id),
+	executionKey: varchar("execution_key", { length: 100 }).notNull(),
+	policyVersion: varchar("policy_version", { length: 50 }).notNull(),
+	status: privacyDeletionStatus("status").notNull().default("processing"),
+	batchSize: integer("batch_size").notNull().default(100),
+	deletedCounts: jsonb("deleted_counts").notNull().default({}),
+	failureCode: varchar("failure_code", { length: 100 }),
+	startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+	finishedAt: timestamp("finished_at", { withTimezone: true }),
+	...timestamps,
+}, (table) => [
+	uniqueIndex("privacy_deletion_executions_key_unique").on(table.executionKey),
+	index("privacy_deletion_executions_organization_started_idx").on(table.organizationId, table.startedAt.desc(), table.id.desc()),
+	check("privacy_deletion_executions_batch_size_check", sql`${table.batchSize} BETWEEN 1 AND 100`),
+	check("privacy_deletion_executions_failure_code_safe", sql`${table.failureCode} IS NULL OR ${table.failureCode} ~ '^[A-Z0-9_]{1,100}$'`),
+]);

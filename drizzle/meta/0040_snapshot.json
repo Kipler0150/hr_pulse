@@ -1,0 +1,5953 @@
+{
+  "id": "30478277-d2a8-4c48-bef9-ee4f69a54b4e",
+  "prevId": "20a09137-15d5-4cb6-844c-c33a720fb182",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.attendance_interval_corrections": {
+      "name": "attendance_interval_corrections",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attendance_interval_id": {
+          "name": "attendance_interval_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_profile_id": {
+          "name": "actor_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "corrected_clock_in": {
+          "name": "corrected_clock_in",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "corrected_clock_out": {
+          "name": "corrected_clock_out",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "attendance_corrections_interval_created_idx": {
+          "name": "attendance_corrections_interval_created_idx",
+          "columns": [
+            {
+              "expression": "attendance_interval_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "attendance_corrections_organization_idx": {
+          "name": "attendance_corrections_organization_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "attendance_interval_corrections_organization_id_organizations_id_fk": {
+          "name": "attendance_interval_corrections_organization_id_organizations_id_fk",
+          "tableFrom": "attendance_interval_corrections",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "attendance_interval_corrections_attendance_interval_id_attendance_intervals_id_fk": {
+          "name": "attendance_interval_corrections_attendance_interval_id_attendance_intervals_id_fk",
+          "tableFrom": "attendance_interval_corrections",
+          "tableTo": "attendance_intervals",
+          "columnsFrom": [
+            "attendance_interval_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "attendance_interval_corrections_actor_profile_id_profiles_id_fk": {
+          "name": "attendance_interval_corrections_actor_profile_id_profiles_id_fk",
+          "tableFrom": "attendance_interval_corrections",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "actor_profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "attendance_corrections_clock_order_check": {
+          "name": "attendance_corrections_clock_order_check",
+          "value": "\"attendance_interval_corrections\".\"corrected_clock_out\" > \"attendance_interval_corrections\".\"corrected_clock_in\""
+        },
+        "attendance_corrections_reason_length_check": {
+          "name": "attendance_corrections_reason_length_check",
+          "value": "char_length(\"attendance_interval_corrections\".\"reason\") BETWEEN 1 AND 500"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.attendance_intervals": {
+      "name": "attendance_intervals",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "clock_in": {
+          "name": "clock_in",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "clock_out": {
+          "name": "clock_out",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "attendance_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "attendance_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "attendance_employee_idx": {
+          "name": "attendance_employee_idx",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "attendance_employee_clock_in_cursor_idx": {
+          "name": "attendance_employee_clock_in_cursor_idx",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "clock_in",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "attendance_one_open_per_employee": {
+          "name": "attendance_one_open_per_employee",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"attendance_intervals\".\"status\" = 'open'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "attendance_intervals_employee_id_employees_id_fk": {
+          "name": "attendance_intervals_employee_id_employees_id_fk",
+          "tableFrom": "attendance_intervals",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "attendance_clock_order_check": {
+          "name": "attendance_clock_order_check",
+          "value": "\"attendance_intervals\".\"clock_out\" IS NULL OR \"attendance_intervals\".\"clock_out\" > \"attendance_intervals\".\"clock_in\""
+        },
+        "attendance_state_consistency_check": {
+          "name": "attendance_state_consistency_check",
+          "value": "(\"attendance_intervals\".\"status\" = 'open' AND \"attendance_intervals\".\"clock_out\" IS NULL) OR (\"attendance_intervals\".\"status\" = 'completed' AND \"attendance_intervals\".\"clock_out\" IS NOT NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.audit_events": {
+      "name": "audit_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_profile_id": {
+          "name": "actor_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action": {
+          "name": "action",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_type": {
+          "name": "entity_type",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "result": {
+          "name": "result",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'success'"
+        },
+        "actor_label_snapshot": {
+          "name": "actor_label_snapshot",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actor_role_snapshot": {
+          "name": "actor_role_snapshot",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "audit_events_organization_created_idx": {
+          "name": "audit_events_organization_created_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "audit_events_organization_action_created_idx": {
+          "name": "audit_events_organization_action_created_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "action",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "audit_events_organization_id_organizations_id_fk": {
+          "name": "audit_events_organization_id_organizations_id_fk",
+          "tableFrom": "audit_events",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "audit_events_actor_profile_id_profiles_id_fk": {
+          "name": "audit_events_actor_profile_id_profiles_id_fk",
+          "tableFrom": "audit_events",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "actor_profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "audit_events_action_check": {
+          "name": "audit_events_action_check",
+          "value": "\"audit_events\".\"action\" IN ('organization.created', 'organization.updated', 'membership.created', 'membership.role_changed', 'membership.deactivated', 'employee.created', 'employee.updated', 'employee.deactivated', 'attendance.checked_in', 'attendance.clocked_out', 'timecard.prepared', 'timecard.submitted', 'timecard.returned', 'timecard.approved', 'timecard.configuration_returned', 'time_off.submitted', 'time_off.cancelled', 'time_off.approved', 'time_off.declined', 'payroll.preview_created', 'payroll.confirmed', 'payroll.queued', 'payroll.processing', 'payroll.completed', 'payroll.failed', 'payroll.retry_requested', 'self_service.profile_updated', 'auth.sign_in_succeeded', 'auth.sign_in_failed', 'auth.sign_out', 'access.organization_selected', 'access.authorization_denied', 'release_control.changed', 'organization.founded', 'membership.assigned', 'payroll_schedule.changed', 'pay_setting.created', 'payroll.recovered', 'overtime_policy.saved', 'attendance_interval.corrected', 'payroll.timecards_consumed', 'payroll.preview.blocked', 'timecard.resubmitted', 'privacy.consent_changed', 'privacy.deletion_requested', 'privacy.deletion_withdrawn', 'privacy.request_review_started', 'privacy.request_decided', 'privacy.hold_placed', 'privacy.hold_released', 'privacy.deletion_completed', 'privacy.deletion_failed')"
+        },
+        "audit_events_result_check": {
+          "name": "audit_events_result_check",
+          "value": "\"audit_events\".\"result\" IN ('success', 'expected_error', 'unexpected_error', 'denied')"
+        },
+        "audit_events_entity_type_check": {
+          "name": "audit_events_entity_type_check",
+          "value": "\"audit_events\".\"entity_type\" IN ('organization', 'membership', 'employee', 'attendance_interval', 'timecard', 'leave_request', 'payroll_run', 'payout', 'payslip', 'profile', 'access', 'release_control', 'pay_setting', 'payroll_preview', 'payroll_schedule', 'overtime_policy', 'attendance_correction')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.employees": {
+      "name": "employees",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "profile_id": {
+          "name": "profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "employee_number": {
+          "name": "employee_number",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "legal_name": {
+          "name": "legal_name",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "preferred_name": {
+          "name": "preferred_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(320)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hire_date": {
+          "name": "hire_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "department": {
+          "name": "department",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "manager_id": {
+          "name": "manager_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "work_location": {
+          "name": "work_location",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "employee_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "termination_date": {
+          "name": "termination_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "employees_organization_number_unique": {
+          "name": "employees_organization_number_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "employee_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "employees_profile_unique": {
+          "name": "employees_profile_unique",
+          "columns": [
+            {
+              "expression": "profile_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "employees_id_organization_unique": {
+          "name": "employees_id_organization_unique",
+          "columns": [
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "employees_organization_idx": {
+          "name": "employees_organization_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "employees_manager_idx": {
+          "name": "employees_manager_idx",
+          "columns": [
+            {
+              "expression": "manager_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "employees_organization_id_organizations_id_fk": {
+          "name": "employees_organization_id_organizations_id_fk",
+          "tableFrom": "employees",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "employees_profile_id_profiles_id_fk": {
+          "name": "employees_profile_id_profiles_id_fk",
+          "tableFrom": "employees",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "employees_manager_same_organization_fk": {
+          "name": "employees_manager_same_organization_fk",
+          "tableFrom": "employees",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "manager_id",
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id",
+            "organization_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "employees_manager_not_self": {
+          "name": "employees_manager_not_self",
+          "value": "\"employees\".\"manager_id\" IS NULL OR \"employees\".\"manager_id\" <> \"employees\".\"id\""
+        },
+        "employees_termination_date_check": {
+          "name": "employees_termination_date_check",
+          "value": "\"employees\".\"termination_date\" IS NULL OR \"employees\".\"termination_date\" >= \"employees\".\"hire_date\""
+        },
+        "employees_version_positive": {
+          "name": "employees_version_positive",
+          "value": "\"employees\".\"version\" > 0"
+        },
+        "employees_preferred_name_valid": {
+          "name": "employees_preferred_name_valid",
+          "value": "\"employees\".\"preferred_name\" IS NULL OR (pg_catalog.btrim(\"employees\".\"preferred_name\") <> '' AND char_length(\"employees\".\"preferred_name\") <= 200)"
+        },
+        "employees_phone_e164_or_null": {
+          "name": "employees_phone_e164_or_null",
+          "value": "\"employees\".\"phone\" IS NULL OR \"employees\".\"phone\" ~ '^[+][0-9]{7,15}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.leave_request_events": {
+      "name": "leave_request_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "leave_request_id": {
+          "name": "leave_request_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_version": {
+          "name": "request_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "leave_event_action",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_profile_id": {
+          "name": "actor_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_role": {
+          "name": "actor_role",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "organization_timezone": {
+          "name": "organization_timezone",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "was_late": {
+          "name": "was_late",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "prior_status": {
+          "name": "prior_status",
+          "type": "leave_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resulting_status": {
+          "name": "resulting_status",
+          "type": "leave_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "decision_note": {
+          "name": "decision_note",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fallback_reason": {
+          "name": "fallback_reason",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "leave_request_events_request_version_unique": {
+          "name": "leave_request_events_request_version_unique",
+          "columns": [
+            {
+              "expression": "leave_request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "request_version",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "leave_request_events_organization_order_idx": {
+          "name": "leave_request_events_organization_order_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "leave_request_events_organization_id_organizations_id_fk": {
+          "name": "leave_request_events_organization_id_organizations_id_fk",
+          "tableFrom": "leave_request_events",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "leave_request_events_actor_profile_id_profiles_id_fk": {
+          "name": "leave_request_events_actor_profile_id_profiles_id_fk",
+          "tableFrom": "leave_request_events",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "actor_profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "leave_request_events_request_organization_fk": {
+          "name": "leave_request_events_request_organization_fk",
+          "tableFrom": "leave_request_events",
+          "tableTo": "leave_requests",
+          "columnsFrom": [
+            "leave_request_id",
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id",
+            "organization_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "leave_request_events_note_length_check": {
+          "name": "leave_request_events_note_length_check",
+          "value": "\"leave_request_events\".\"decision_note\" IS NULL OR char_length(\"leave_request_events\".\"decision_note\") BETWEEN 1 AND 500"
+        },
+        "leave_request_events_fallback_length_check": {
+          "name": "leave_request_events_fallback_length_check",
+          "value": "\"leave_request_events\".\"fallback_reason\" IS NULL OR char_length(\"leave_request_events\".\"fallback_reason\") BETWEEN 1 AND 500"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.leave_requests": {
+      "name": "leave_requests",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "end_date": {
+          "name": "end_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "leave_type": {
+          "name": "leave_type",
+          "type": "leave_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "leave_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "reviewer_profile_id": {
+          "name": "reviewer_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decision_at": {
+          "name": "decision_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancelled_at": {
+          "name": "cancelled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "leave_requests_id_organization_unique": {
+          "name": "leave_requests_id_organization_unique",
+          "columns": [
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "leave_requests_organization_submitted_idx": {
+          "name": "leave_requests_organization_submitted_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "submitted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "leave_requests_employee_submitted_idx": {
+          "name": "leave_requests_employee_submitted_idx",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "submitted_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "leave_requests_organization_id_organizations_id_fk": {
+          "name": "leave_requests_organization_id_organizations_id_fk",
+          "tableFrom": "leave_requests",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "leave_requests_employee_id_employees_id_fk": {
+          "name": "leave_requests_employee_id_employees_id_fk",
+          "tableFrom": "leave_requests",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "leave_requests_reviewer_profile_id_profiles_id_fk": {
+          "name": "leave_requests_reviewer_profile_id_profiles_id_fk",
+          "tableFrom": "leave_requests",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "reviewer_profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "leave_requests_employee_organization_fk": {
+          "name": "leave_requests_employee_organization_fk",
+          "tableFrom": "leave_requests",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "employee_id",
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id",
+            "organization_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "leave_date_order_check": {
+          "name": "leave_date_order_check",
+          "value": "\"leave_requests\".\"end_date\" >= \"leave_requests\".\"start_date\""
+        },
+        "leave_requests_version_positive": {
+          "name": "leave_requests_version_positive",
+          "value": "\"leave_requests\".\"version\" > 0"
+        },
+        "leave_requests_reason_length_check": {
+          "name": "leave_requests_reason_length_check",
+          "value": "\"leave_requests\".\"reason\" IS NULL OR char_length(\"leave_requests\".\"reason\") <= 500"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.memberships": {
+      "name": "memberships",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "profile_id": {
+          "name": "profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "membership_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "membership_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "deactivated_at": {
+          "name": "deactivated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "memberships_organization_profile_unique": {
+          "name": "memberships_organization_profile_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "profile_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "memberships_organization_idx": {
+          "name": "memberships_organization_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "memberships_organization_id_organizations_id_fk": {
+          "name": "memberships_organization_id_organizations_id_fk",
+          "tableFrom": "memberships",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "memberships_profile_id_profiles_id_fk": {
+          "name": "memberships_profile_id_profiles_id_fk",
+          "tableFrom": "memberships",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mutation_receipts": {
+      "name": "mutation_receipts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_profile_id": {
+          "name": "actor_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operation": {
+          "name": "operation",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload_hash": {
+          "name": "payload_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "result_entity_type": {
+          "name": "result_entity_type",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "result_entity_id": {
+          "name": "result_entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "result_version": {
+          "name": "result_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "result_snapshot": {
+          "name": "result_snapshot",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "mutation_receipts_operation_request_unique": {
+          "name": "mutation_receipts_operation_request_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "operation",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mutation_receipts_organization_id_organizations_id_fk": {
+          "name": "mutation_receipts_organization_id_organizations_id_fk",
+          "tableFrom": "mutation_receipts",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "mutation_receipts_actor_profile_id_profiles_id_fk": {
+          "name": "mutation_receipts_actor_profile_id_profiles_id_fk",
+          "tableFrom": "mutation_receipts",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "actor_profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "mutation_receipts_result_version_positive": {
+          "name": "mutation_receipts_result_version_positive",
+          "value": "\"mutation_receipts\".\"result_version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.operation_failures": {
+      "name": "operation_failures",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "analytics_subject_key": {
+          "name": "analytics_subject_key",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "operation": {
+          "name": "operation",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "safe_code": {
+          "name": "safe_code",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "group_key": {
+          "name": "group_key",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "first_seen_at": {
+          "name": "first_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "occurrence_count": {
+          "name": "occurrence_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "affected_entity_type": {
+          "name": "affected_entity_type",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "affected_entity_id": {
+          "name": "affected_entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "workflow_status": {
+          "name": "workflow_status",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recovery_available": {
+          "name": "recovery_available",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "operation_failures_organization_group_unique": {
+          "name": "operation_failures_organization_group_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "group_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "operation_failures_organization_last_seen_idx": {
+          "name": "operation_failures_organization_last_seen_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "last_seen_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "operation_failures_organization_subject_last_seen_idx": {
+          "name": "operation_failures_organization_subject_last_seen_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "analytics_subject_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "last_seen_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "operation_failures_organization_id_organizations_id_fk": {
+          "name": "operation_failures_organization_id_organizations_id_fk",
+          "tableFrom": "operation_failures",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "operation_failures_operation_check": {
+          "name": "operation_failures_operation_check",
+          "value": "\"operation_failures\".\"operation\" IN ('auth.sign_in', 'auth.sign_out', 'auth.organization_select', 'setup.organization_create', 'setup.employee_save', 'attendance.check_in', 'attendance.clock_out', 'attendance.review', 'attendance_interval.correct', 'time_off.submit', 'time_off.cancel', 'time_off.approve', 'time_off.decline', 'timecard.prepare', 'timecard.submit', 'timecard.return', 'timecard.approve', 'overtime_policy.save', 'payroll.preview', 'payroll.confirm', 'payroll.queue', 'payroll.calculation', 'payroll.recover', 'payroll.retry', 'self_service.profile_update', 'self_service.payslip_download')"
+        },
+        "operation_failures_safe_code_check": {
+          "name": "operation_failures_safe_code_check",
+          "value": "\"operation_failures\".\"safe_code\" IN ('OPERATION_UNAVAILABLE', 'PAYROLL_DISABLED', 'PAYSLIPS_BUCKET_UNAVAILABLE', 'PAYROLL_FORBIDDEN', 'PAYROLL_PERIOD_BLOCKED', 'NO_CLOSED_PERIOD', 'NO_ELIGIBLE_EMPLOYEES', 'EMPLOYEE_LIMIT_EXCEEDED', 'PAY_SETTING_MISSING', 'TIMECARD_APPROVAL_MISSING', 'CURRENCY_MISMATCH', 'DEDUCTIONS_EXCEED_GROSS', 'PREVIEW_EXPIRED', 'PREVIEW_STALE', 'RUN_NOT_RETRYABLE', 'PROCESSING_LEASE_ACTIVE', 'QUEUE_DELIVERY_FAILED', 'PAYSLIP_GENERATION_FAILED', 'PAYSLIP_INTEGRITY_FAILED', 'PAYSLIP_UNAVAILABLE', 'PAYROLL_PROCESSING_FAILED', 'PAYROLL_FAILED', 'ATTENDANCE_FORBIDDEN', 'EMPLOYEE_NOT_ELIGIBLE', 'ALREADY_CHECKED_IN', 'NOT_CHECKED_IN', 'ATTENDANCE_REQUEST_FAILED', 'TIME_OFF_FORBIDDEN', 'TIME_OFF_UNAVAILABLE', 'TIME_OFF_REQUEST_FAILED', 'OVERTIME_FORBIDDEN', 'TIMECARD_INVALID_STATE', 'TIMECARD_STALE', 'OVERTIME_REQUEST_FAILED', 'CONFIGURATION_DRIFT', 'ADMINISTRATOR_FALLBACK', 'ATTENDANCE_CORRECTION', 'SELF_SERVICE_ACCESS_UNAVAILABLE', 'SELF_SERVICE_UNAVAILABLE')"
+        },
+        "operation_failures_count_nonnegative": {
+          "name": "operation_failures_count_nonnegative",
+          "value": "\"operation_failures\".\"occurrence_count\" >= 1"
+        },
+        "operation_failures_time_order": {
+          "name": "operation_failures_time_order",
+          "value": "\"operation_failures\".\"last_seen_at\" >= \"operation_failures\".\"first_seen_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.organizations": {
+      "name": "organizations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "organization_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "timezone": {
+          "name": "timezone",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "default_currency": {
+          "name": "default_currency",
+          "type": "varchar(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "region_code": {
+          "name": "region_code",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "founding_profile_id": {
+          "name": "founding_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "organizations_slug_unique": {
+          "name": "organizations_slug_unique",
+          "columns": [
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "organizations_founding_profile_unique": {
+          "name": "organizations_founding_profile_unique",
+          "columns": [
+            {
+              "expression": "founding_profile_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "organizations_founding_profile_id_profiles_id_fk": {
+          "name": "organizations_founding_profile_id_profiles_id_fk",
+          "tableFrom": "organizations",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "founding_profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.overtime_policies": {
+      "name": "overtime_policies",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "daily_threshold_minutes": {
+          "name": "daily_threshold_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "overtime_policies_organization_start_unique": {
+          "name": "overtime_policies_organization_start_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "effective_from",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "overtime_policies_organization_version_unique": {
+          "name": "overtime_policies_organization_version_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "version",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "overtime_policies_organization_start_idx": {
+          "name": "overtime_policies_organization_start_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "effective_from",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "overtime_policies_organization_id_organizations_id_fk": {
+          "name": "overtime_policies_organization_id_organizations_id_fk",
+          "tableFrom": "overtime_policies",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "overtime_policies_version_positive": {
+          "name": "overtime_policies_version_positive",
+          "value": "\"overtime_policies\".\"version\" > 0"
+        },
+        "overtime_policies_threshold_range": {
+          "name": "overtime_policies_threshold_range",
+          "value": "\"overtime_policies\".\"daily_threshold_minutes\" BETWEEN 1 AND 1440"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.pay_setting_deductions": {
+      "name": "pay_setting_deductions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pay_setting_id": {
+          "name": "pay_setting_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_minor": {
+          "name": "amount_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_order": {
+          "name": "display_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "pay_setting_deductions_setting_idx": {
+          "name": "pay_setting_deductions_setting_idx",
+          "columns": [
+            {
+              "expression": "pay_setting_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pay_setting_deductions_name_unique": {
+          "name": "pay_setting_deductions_name_unique",
+          "columns": [
+            {
+              "expression": "pay_setting_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"name\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pay_setting_deductions_pay_setting_id_pay_settings_id_fk": {
+          "name": "pay_setting_deductions_pay_setting_id_pay_settings_id_fk",
+          "tableFrom": "pay_setting_deductions",
+          "tableTo": "pay_settings",
+          "columnsFrom": [
+            "pay_setting_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "pay_setting_deductions_amount_positive": {
+          "name": "pay_setting_deductions_amount_positive",
+          "value": "\"pay_setting_deductions\".\"amount_minor\" > 0"
+        },
+        "pay_setting_deductions_order_nonnegative": {
+          "name": "pay_setting_deductions_order_nonnegative",
+          "value": "\"pay_setting_deductions\".\"display_order\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.pay_settings": {
+      "name": "pay_settings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_to": {
+          "name": "effective_to",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pay_frequency": {
+          "name": "pay_frequency",
+          "type": "pay_frequency",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "gross_amount_minor": {
+          "name": "gross_amount_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "overtime_eligible": {
+          "name": "overtime_eligible",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "standard_period_minutes": {
+          "name": "standard_period_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "overtime_multiplier_basis_points": {
+          "name": "overtime_multiplier_basis_points",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "pay_settings_employee_idx": {
+          "name": "pay_settings_employee_idx",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pay_settings_employee_id_employees_id_fk": {
+          "name": "pay_settings_employee_id_employees_id_fk",
+          "tableFrom": "pay_settings",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "pay_settings_effective_dates_check": {
+          "name": "pay_settings_effective_dates_check",
+          "value": "\"pay_settings\".\"effective_to\" IS NULL OR \"pay_settings\".\"effective_to\" >= \"pay_settings\".\"effective_from\""
+        },
+        "pay_settings_version_positive": {
+          "name": "pay_settings_version_positive",
+          "value": "\"pay_settings\".\"version\" > 0"
+        },
+        "pay_settings_gross_positive": {
+          "name": "pay_settings_gross_positive",
+          "value": "\"pay_settings\".\"gross_amount_minor\" > 0"
+        },
+        "pay_settings_overtime_inputs_check": {
+          "name": "pay_settings_overtime_inputs_check",
+          "value": "(\"pay_settings\".\"overtime_eligible\" = false AND \"pay_settings\".\"standard_period_minutes\" IS NULL AND \"pay_settings\".\"overtime_multiplier_basis_points\" IS NULL) OR (\"pay_settings\".\"overtime_eligible\" = true AND \"pay_settings\".\"standard_period_minutes\" > 0 AND \"pay_settings\".\"overtime_multiplier_basis_points\" BETWEEN 10000 AND 50000)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.payout_deduction_lines": {
+      "name": "payout_deduction_lines",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "payout_id": {
+          "name": "payout_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_deduction_id": {
+          "name": "source_deduction_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_minor": {
+          "name": "amount_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_order": {
+          "name": "display_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "payout_deduction_lines_payout_order_idx": {
+          "name": "payout_deduction_lines_payout_order_idx",
+          "columns": [
+            {
+              "expression": "payout_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "display_order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "payout_deduction_lines_payout_id_payouts_id_fk": {
+          "name": "payout_deduction_lines_payout_id_payouts_id_fk",
+          "tableFrom": "payout_deduction_lines",
+          "tableTo": "payouts",
+          "columnsFrom": [
+            "payout_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payout_deduction_lines_source_deduction_id_pay_setting_deductions_id_fk": {
+          "name": "payout_deduction_lines_source_deduction_id_pay_setting_deductions_id_fk",
+          "tableFrom": "payout_deduction_lines",
+          "tableTo": "pay_setting_deductions",
+          "columnsFrom": [
+            "source_deduction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "payout_deduction_amount_positive": {
+          "name": "payout_deduction_amount_positive",
+          "value": "\"payout_deduction_lines\".\"amount_minor\" > 0"
+        },
+        "payout_deduction_order_nonnegative": {
+          "name": "payout_deduction_order_nonnegative",
+          "value": "\"payout_deduction_lines\".\"display_order\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.payout_earning_lines": {
+      "name": "payout_earning_lines",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "payout_id": {
+          "name": "payout_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "timecard_id": {
+          "name": "timecard_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "earning_type": {
+          "name": "earning_type",
+          "type": "earning_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payable_minutes": {
+          "name": "payable_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "base_gross_amount_minor": {
+          "name": "base_gross_amount_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "standard_period_minutes": {
+          "name": "standard_period_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "multiplier_basis_points": {
+          "name": "multiplier_basis_points",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_minor": {
+          "name": "amount_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_order": {
+          "name": "display_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "payout_earning_lines_payout_type_unique": {
+          "name": "payout_earning_lines_payout_type_unique",
+          "columns": [
+            {
+              "expression": "payout_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "earning_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payout_earning_lines_timecard_unique": {
+          "name": "payout_earning_lines_timecard_unique",
+          "columns": [
+            {
+              "expression": "timecard_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payout_earning_lines_payout_order_idx": {
+          "name": "payout_earning_lines_payout_order_idx",
+          "columns": [
+            {
+              "expression": "payout_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "display_order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "payout_earning_lines_payout_id_payouts_id_fk": {
+          "name": "payout_earning_lines_payout_id_payouts_id_fk",
+          "tableFrom": "payout_earning_lines",
+          "tableTo": "payouts",
+          "columnsFrom": [
+            "payout_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payout_earning_lines_timecard_id_timecards_id_fk": {
+          "name": "payout_earning_lines_timecard_id_timecards_id_fk",
+          "tableFrom": "payout_earning_lines",
+          "tableTo": "timecards",
+          "columnsFrom": [
+            "timecard_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "payout_earning_lines_values_nonnegative": {
+          "name": "payout_earning_lines_values_nonnegative",
+          "value": "\"payout_earning_lines\".\"payable_minutes\" >= 0 AND \"payout_earning_lines\".\"base_gross_amount_minor\" > 0 AND \"payout_earning_lines\".\"amount_minor\" >= 0 AND \"payout_earning_lines\".\"display_order\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.payouts": {
+      "name": "payouts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "payroll_run_id": {
+          "name": "payroll_run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pay_setting_id": {
+          "name": "pay_setting_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_number": {
+          "name": "employee_number",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "legal_name": {
+          "name": "legal_name",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gross_amount_minor": {
+          "name": "gross_amount_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "deductions_amount_minor": {
+          "name": "deductions_amount_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "net_amount_minor": {
+          "name": "net_amount_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency_exponent": {
+          "name": "currency_exponent",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "calculation_version": {
+          "name": "calculation_version",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payroll_period_end": {
+          "name": "payroll_period_end",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "payout_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "error_code": {
+          "name": "error_code",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_guidance": {
+          "name": "error_guidance",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payouts_run_employee_unique": {
+          "name": "payouts_run_employee_unique",
+          "columns": [
+            {
+              "expression": "payroll_run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payouts_employee_idx": {
+          "name": "payouts_employee_idx",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payouts_employee_period_cursor_idx": {
+          "name": "payouts_employee_period_cursor_idx",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "payroll_period_end",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "payouts_payroll_run_id_payroll_runs_id_fk": {
+          "name": "payouts_payroll_run_id_payroll_runs_id_fk",
+          "tableFrom": "payouts",
+          "tableTo": "payroll_runs",
+          "columnsFrom": [
+            "payroll_run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payouts_employee_id_employees_id_fk": {
+          "name": "payouts_employee_id_employees_id_fk",
+          "tableFrom": "payouts",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payouts_pay_setting_id_pay_settings_id_fk": {
+          "name": "payouts_pay_setting_id_pay_settings_id_fk",
+          "tableFrom": "payouts",
+          "tableTo": "pay_settings",
+          "columnsFrom": [
+            "pay_setting_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "payouts_gross_nonnegative": {
+          "name": "payouts_gross_nonnegative",
+          "value": "\"payouts\".\"gross_amount_minor\" >= 0"
+        },
+        "payouts_deductions_nonnegative": {
+          "name": "payouts_deductions_nonnegative",
+          "value": "\"payouts\".\"deductions_amount_minor\" >= 0"
+        },
+        "payouts_net_check": {
+          "name": "payouts_net_check",
+          "value": "\"payouts\".\"net_amount_minor\" = \"payouts\".\"gross_amount_minor\" - \"payouts\".\"deductions_amount_minor\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.payroll_preview_tokens": {
+      "name": "payroll_preview_tokens",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_profile_id": {
+          "name": "actor_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_start": {
+          "name": "period_start",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_end": {
+          "name": "period_end",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fingerprint": {
+          "name": "fingerprint",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "calculation_version": {
+          "name": "calculation_version",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payroll_period_end": {
+          "name": "payroll_period_end",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payroll_preview_tokens_hash_unique": {
+          "name": "payroll_preview_tokens_hash_unique",
+          "columns": [
+            {
+              "expression": "token_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payroll_preview_tokens_organization_expiry_idx": {
+          "name": "payroll_preview_tokens_organization_expiry_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "payroll_preview_tokens_organization_id_organizations_id_fk": {
+          "name": "payroll_preview_tokens_organization_id_organizations_id_fk",
+          "tableFrom": "payroll_preview_tokens",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payroll_preview_tokens_actor_profile_id_profiles_id_fk": {
+          "name": "payroll_preview_tokens_actor_profile_id_profiles_id_fk",
+          "tableFrom": "payroll_preview_tokens",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "actor_profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "payroll_preview_period_order_check": {
+          "name": "payroll_preview_period_order_check",
+          "value": "\"payroll_preview_tokens\".\"period_end\" >= \"payroll_preview_tokens\".\"period_start\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.payroll_run_attempts": {
+      "name": "payroll_run_attempts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "payroll_run_id": {
+          "name": "payroll_run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "processing_generation": {
+          "name": "processing_generation",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempt_number": {
+          "name": "attempt_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "inngest_event_id": {
+          "name": "inngest_event_id",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "initiated_by_profile_id": {
+          "name": "initiated_by_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "payroll_attempt_outcome",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'processing'"
+        },
+        "error_code": {
+          "name": "error_code",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_guidance": {
+          "name": "error_guidance",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "payroll_attempt_generation_number_unique": {
+          "name": "payroll_attempt_generation_number_unique",
+          "columns": [
+            {
+              "expression": "payroll_run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "processing_generation",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "attempt_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payroll_attempt_run_started_idx": {
+          "name": "payroll_attempt_run_started_idx",
+          "columns": [
+            {
+              "expression": "payroll_run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "payroll_run_attempts_payroll_run_id_payroll_runs_id_fk": {
+          "name": "payroll_run_attempts_payroll_run_id_payroll_runs_id_fk",
+          "tableFrom": "payroll_run_attempts",
+          "tableTo": "payroll_runs",
+          "columnsFrom": [
+            "payroll_run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payroll_run_attempts_initiated_by_profile_id_profiles_id_fk": {
+          "name": "payroll_run_attempts_initiated_by_profile_id_profiles_id_fk",
+          "tableFrom": "payroll_run_attempts",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "initiated_by_profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "payroll_attempt_number_positive": {
+          "name": "payroll_attempt_number_positive",
+          "value": "\"payroll_run_attempts\".\"attempt_number\" > 0 AND \"payroll_run_attempts\".\"processing_generation\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.payroll_runs": {
+      "name": "payroll_runs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payroll_schedule_id": {
+          "name": "payroll_schedule_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_start": {
+          "name": "period_start",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_end": {
+          "name": "period_end",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "payroll_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'queued'"
+        },
+        "organization_name": {
+          "name": "organization_name",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "organization_timezone": {
+          "name": "organization_timezone",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pay_frequency": {
+          "name": "pay_frequency",
+          "type": "pay_frequency",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "schedule_version": {
+          "name": "schedule_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gross_total_minor": {
+          "name": "gross_total_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "deductions_total_minor": {
+          "name": "deductions_total_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "net_total_minor": {
+          "name": "net_total_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency_exponent": {
+          "name": "currency_exponent",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency_map_version": {
+          "name": "currency_map_version",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "calculation_version": {
+          "name": "calculation_version",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payroll_reference": {
+          "name": "payroll_reference",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "confirmed_by_profile_id": {
+          "name": "confirmed_by_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "confirmed_at": {
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "source_fingerprint": {
+          "name": "source_fingerprint",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "preview_token_hash": {
+          "name": "preview_token_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "processing_generation": {
+          "name": "processing_generation",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "queue_status": {
+          "name": "queue_status",
+          "type": "queue_delivery_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "queue_submitted_at": {
+          "name": "queue_submitted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "queue_event_id": {
+          "name": "queue_event_id",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "queue_error_code": {
+          "name": "queue_error_code",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lease_owner": {
+          "name": "lease_owner",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lease_expires_at": {
+          "name": "lease_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_progress_at": {
+          "name": "last_progress_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_code": {
+          "name": "error_code",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_guidance": {
+          "name": "error_guidance",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payroll_runs_organization_period_unique": {
+          "name": "payroll_runs_organization_period_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "period_start",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "period_end",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payroll_runs_preview_token_unique": {
+          "name": "payroll_runs_preview_token_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "preview_token_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payroll_runs_reference_unique": {
+          "name": "payroll_runs_reference_unique",
+          "columns": [
+            {
+              "expression": "payroll_reference",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payroll_runs_organization_period_idx": {
+          "name": "payroll_runs_organization_period_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "period_start",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "period_end",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "payroll_runs_organization_id_organizations_id_fk": {
+          "name": "payroll_runs_organization_id_organizations_id_fk",
+          "tableFrom": "payroll_runs",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payroll_runs_payroll_schedule_id_payroll_schedules_id_fk": {
+          "name": "payroll_runs_payroll_schedule_id_payroll_schedules_id_fk",
+          "tableFrom": "payroll_runs",
+          "tableTo": "payroll_schedules",
+          "columnsFrom": [
+            "payroll_schedule_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payroll_runs_confirmed_by_profile_id_profiles_id_fk": {
+          "name": "payroll_runs_confirmed_by_profile_id_profiles_id_fk",
+          "tableFrom": "payroll_runs",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "confirmed_by_profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "payroll_period_order_check": {
+          "name": "payroll_period_order_check",
+          "value": "\"payroll_runs\".\"period_end\" >= \"payroll_runs\".\"period_start\""
+        },
+        "payroll_totals_nonnegative": {
+          "name": "payroll_totals_nonnegative",
+          "value": "\"payroll_runs\".\"gross_total_minor\" >= 0 AND \"payroll_runs\".\"deductions_total_minor\" >= 0 AND \"payroll_runs\".\"net_total_minor\" >= 0"
+        },
+        "payroll_net_total_check": {
+          "name": "payroll_net_total_check",
+          "value": "\"payroll_runs\".\"net_total_minor\" = \"payroll_runs\".\"gross_total_minor\" - \"payroll_runs\".\"deductions_total_minor\""
+        },
+        "payroll_processing_generation_positive": {
+          "name": "payroll_processing_generation_positive",
+          "value": "\"payroll_runs\".\"processing_generation\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.payroll_schedules": {
+      "name": "payroll_schedules",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "frequency": {
+          "name": "frequency",
+          "type": "pay_frequency",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "anchor_start_date": {
+          "name": "anchor_start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "effective_start_date": {
+          "name": "effective_start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payroll_schedules_organization_unique": {
+          "name": "payroll_schedules_organization_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "payroll_schedules_organization_id_organizations_id_fk": {
+          "name": "payroll_schedules_organization_id_organizations_id_fk",
+          "tableFrom": "payroll_schedules",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "payroll_schedules_version_positive": {
+          "name": "payroll_schedules_version_positive",
+          "value": "\"payroll_schedules\".\"version\" > 0"
+        },
+        "payroll_schedules_anchor_check": {
+          "name": "payroll_schedules_anchor_check",
+          "value": "(\"payroll_schedules\".\"frequency\" IN ('weekly', 'biweekly') AND \"payroll_schedules\".\"anchor_start_date\" IS NOT NULL) OR (\"payroll_schedules\".\"frequency\" IN ('semimonthly', 'monthly') AND \"payroll_schedules\".\"anchor_start_date\" IS NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.payslips": {
+      "name": "payslips",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "payout_id": {
+          "name": "payout_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "payslip_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "storage_path": {
+          "name": "storage_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "generated_at": {
+          "name": "generated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "template_version": {
+          "name": "template_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sha256": {
+          "name": "sha256",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_size_bytes": {
+          "name": "file_size_bytes",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mime_type": {
+          "name": "mime_type",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "immutable": {
+          "name": "immutable",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "error_code": {
+          "name": "error_code",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_guidance": {
+          "name": "error_guidance",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payslips_payout_unique": {
+          "name": "payslips_payout_unique",
+          "columns": [
+            {
+              "expression": "payout_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "payslips_payout_id_payouts_id_fk": {
+          "name": "payslips_payout_id_payouts_id_fk",
+          "tableFrom": "payslips",
+          "tableTo": "payouts",
+          "columnsFrom": [
+            "payout_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.privacy_consents": {
+      "name": "privacy_consents",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "profile_id": {
+          "name": "profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consent_type": {
+          "name": "consent_type",
+          "type": "privacy_consent_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'product_analytics'"
+        },
+        "granted": {
+          "name": "granted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_version": {
+          "name": "policy_version",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "superseded_at": {
+          "name": "superseded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "privacy_consents_organization_profile_idx": {
+          "name": "privacy_consents_organization_profile_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "profile_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "recorded_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "privacy_consents_idempotency_unique": {
+          "name": "privacy_consents_idempotency_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "profile_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "privacy_consents_current_unique": {
+          "name": "privacy_consents_current_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "profile_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "consent_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"privacy_consents\".\"superseded_at\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "privacy_consents_organization_id_organizations_id_fk": {
+          "name": "privacy_consents_organization_id_organizations_id_fk",
+          "tableFrom": "privacy_consents",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "privacy_consents_profile_id_profiles_id_fk": {
+          "name": "privacy_consents_profile_id_profiles_id_fk",
+          "tableFrom": "privacy_consents",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.privacy_deletion_executions": {
+      "name": "privacy_deletion_executions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "privacy_request_id": {
+          "name": "privacy_request_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "execution_key": {
+          "name": "execution_key",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_version": {
+          "name": "policy_version",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "privacy_deletion_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'processing'"
+        },
+        "batch_size": {
+          "name": "batch_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 100
+        },
+        "deleted_counts": {
+          "name": "deleted_counts",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "failure_code": {
+          "name": "failure_code",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "privacy_deletion_executions_key_unique": {
+          "name": "privacy_deletion_executions_key_unique",
+          "columns": [
+            {
+              "expression": "execution_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "privacy_deletion_executions_organization_started_idx": {
+          "name": "privacy_deletion_executions_organization_started_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "privacy_deletion_executions_organization_id_organizations_id_fk": {
+          "name": "privacy_deletion_executions_organization_id_organizations_id_fk",
+          "tableFrom": "privacy_deletion_executions",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "privacy_deletion_executions_privacy_request_id_privacy_requests_id_fk": {
+          "name": "privacy_deletion_executions_privacy_request_id_privacy_requests_id_fk",
+          "tableFrom": "privacy_deletion_executions",
+          "tableTo": "privacy_requests",
+          "columnsFrom": [
+            "privacy_request_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "privacy_deletion_executions_batch_size_check": {
+          "name": "privacy_deletion_executions_batch_size_check",
+          "value": "\"privacy_deletion_executions\".\"batch_size\" BETWEEN 1 AND 100"
+        },
+        "privacy_deletion_executions_failure_code_safe": {
+          "name": "privacy_deletion_executions_failure_code_safe",
+          "value": "\"privacy_deletion_executions\".\"failure_code\" IS NULL OR \"privacy_deletion_executions\".\"failure_code\" ~ '^[A-Z0-9_]{1,100}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.privacy_holds": {
+      "name": "privacy_holds",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "profile_id": {
+          "name": "profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "placed_by_profile_id": {
+          "name": "placed_by_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "released_by_profile_id": {
+          "name": "released_by_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "placed_at": {
+          "name": "placed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "released_at": {
+          "name": "released_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "last_action_idempotency_key": {
+          "name": "last_action_idempotency_key",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "privacy_holds_organization_profile_idx": {
+          "name": "privacy_holds_organization_profile_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "profile_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "active",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "privacy_holds_active_unique": {
+          "name": "privacy_holds_active_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "profile_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"privacy_holds\".\"active\" = true",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "privacy_holds_organization_id_organizations_id_fk": {
+          "name": "privacy_holds_organization_id_organizations_id_fk",
+          "tableFrom": "privacy_holds",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "privacy_holds_profile_id_profiles_id_fk": {
+          "name": "privacy_holds_profile_id_profiles_id_fk",
+          "tableFrom": "privacy_holds",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "privacy_holds_placed_by_profile_id_profiles_id_fk": {
+          "name": "privacy_holds_placed_by_profile_id_profiles_id_fk",
+          "tableFrom": "privacy_holds",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "placed_by_profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "privacy_holds_released_by_profile_id_profiles_id_fk": {
+          "name": "privacy_holds_released_by_profile_id_profiles_id_fk",
+          "tableFrom": "privacy_holds",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "released_by_profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "privacy_holds_release_consistency": {
+          "name": "privacy_holds_release_consistency",
+          "value": "(\"privacy_holds\".\"active\" = true AND \"privacy_holds\".\"released_at\" IS NULL AND \"privacy_holds\".\"released_by_profile_id\" IS NULL) OR (\"privacy_holds\".\"active\" = false AND \"privacy_holds\".\"released_at\" IS NOT NULL AND \"privacy_holds\".\"released_by_profile_id\" IS NOT NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.privacy_requests": {
+      "name": "privacy_requests",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "profile_id": {
+          "name": "profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_type": {
+          "name": "request_type",
+          "type": "privacy_request_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'deletion'"
+        },
+        "status": {
+          "name": "status",
+          "type": "privacy_request_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'submitted'"
+        },
+        "resolution_code": {
+          "name": "resolution_code",
+          "type": "privacy_request_resolution",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "policy_version": {
+          "name": "policy_version",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "reviewed_at": {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_by_profile_id": {
+          "name": "reviewed_by_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scheduled_at": {
+          "name": "scheduled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "failed_at": {
+          "name": "failed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "failure_code": {
+          "name": "failure_code",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_action_idempotency_key": {
+          "name": "last_action_idempotency_key",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deleted_counts": {
+          "name": "deleted_counts",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "privacy_requests_organization_status_idx": {
+          "name": "privacy_requests_organization_status_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "submitted_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "privacy_requests_profile_submitted_idx": {
+          "name": "privacy_requests_profile_submitted_idx",
+          "columns": [
+            {
+              "expression": "profile_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "submitted_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "privacy_requests_idempotency_unique": {
+          "name": "privacy_requests_idempotency_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "profile_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "privacy_requests_open_unique": {
+          "name": "privacy_requests_open_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "profile_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"privacy_requests\".\"status\" IN ('submitted', 'under_review', 'approved', 'scheduled', 'failed')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "privacy_requests_organization_id_organizations_id_fk": {
+          "name": "privacy_requests_organization_id_organizations_id_fk",
+          "tableFrom": "privacy_requests",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "privacy_requests_profile_id_profiles_id_fk": {
+          "name": "privacy_requests_profile_id_profiles_id_fk",
+          "tableFrom": "privacy_requests",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "privacy_requests_reviewed_by_profile_id_profiles_id_fk": {
+          "name": "privacy_requests_reviewed_by_profile_id_profiles_id_fk",
+          "tableFrom": "privacy_requests",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "reviewed_by_profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "privacy_requests_failure_code_safe": {
+          "name": "privacy_requests_failure_code_safe",
+          "value": "\"privacy_requests\".\"failure_code\" IS NULL OR \"privacy_requests\".\"failure_code\" ~ '^[A-Z0-9_]{1,100}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.product_events": {
+      "name": "product_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "analytics_subject_key": {
+          "name": "analytics_subject_key",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "event_name": {
+          "name": "event_name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "schema_version": {
+          "name": "schema_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "workflow_area": {
+          "name": "workflow_area",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "result_category": {
+          "name": "result_category",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "duration_ms": {
+          "name": "duration_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dedupe_key": {
+          "name": "dedupe_key",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "product_events_organization_dedupe_unique": {
+          "name": "product_events_organization_dedupe_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "dedupe_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "product_events_organization_occurred_idx": {
+          "name": "product_events_organization_occurred_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "product_events_organization_event_occurred_idx": {
+          "name": "product_events_organization_event_occurred_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "event_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "product_events_organization_subject_occurred_idx": {
+          "name": "product_events_organization_subject_occurred_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "analytics_subject_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "product_events_organization_id_organizations_id_fk": {
+          "name": "product_events_organization_id_organizations_id_fk",
+          "tableFrom": "product_events",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "product_events_schema_version_positive": {
+          "name": "product_events_schema_version_positive",
+          "value": "\"product_events\".\"schema_version\" > 0"
+        },
+        "product_events_event_name_check": {
+          "name": "product_events_event_name_check",
+          "value": "\"product_events\".\"event_name\" IN ('auth.sign_in_succeeded', 'setup.organization_completed', 'setup.employee_created', 'attendance.checked_in', 'attendance.clocked_out', 'time_off.submitted', 'time_off.approved', 'time_off.declined', 'timecard.submitted', 'timecard.approved', 'payroll.preview_created', 'payroll.confirmed', 'payroll.completed', 'payroll.failed', 'self_service.profile_updated', 'self_service.payslip_downloaded')"
+        },
+        "product_events_duration_bounded": {
+          "name": "product_events_duration_bounded",
+          "value": "\"product_events\".\"duration_ms\" IS NULL OR \"product_events\".\"duration_ms\" BETWEEN 0 AND 3600000"
+        },
+        "product_events_result_category_check": {
+          "name": "product_events_result_category_check",
+          "value": "\"product_events\".\"result_category\" IS NULL OR \"product_events\".\"result_category\" IN ('success', 'expected_error', 'unexpected_error')"
+        },
+        "product_events_workflow_area_check": {
+          "name": "product_events_workflow_area_check",
+          "value": "\"product_events\".\"workflow_area\" IS NULL OR \"product_events\".\"workflow_area\" IN ('auth', 'setup', 'attendance', 'time_off', 'timecards', 'payroll', 'self_service')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.profiles": {
+      "name": "profiles",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "auth_user_id": {
+          "name": "auth_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(320)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "profile_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "profiles_auth_user_id_unique": {
+          "name": "profiles_auth_user_id_unique",
+          "columns": [
+            {
+              "expression": "auth_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.timecard_day_sources": {
+      "name": "timecard_day_sources",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "timecard_day_id": {
+          "name": "timecard_day_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attendance_interval_id": {
+          "name": "attendance_interval_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attendance_interval_correction_id": {
+          "name": "attendance_interval_correction_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "clock_in_snapshot": {
+          "name": "clock_in_snapshot",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "clock_out_snapshot": {
+          "name": "clock_out_snapshot",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "allocated_seconds": {
+          "name": "allocated_seconds",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "timecard_day_sources_day_idx": {
+          "name": "timecard_day_sources_day_idx",
+          "columns": [
+            {
+              "expression": "timecard_day_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "timecard_day_sources_interval_idx": {
+          "name": "timecard_day_sources_interval_idx",
+          "columns": [
+            {
+              "expression": "attendance_interval_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "timecard_day_sources_timecard_day_id_timecard_days_id_fk": {
+          "name": "timecard_day_sources_timecard_day_id_timecard_days_id_fk",
+          "tableFrom": "timecard_day_sources",
+          "tableTo": "timecard_days",
+          "columnsFrom": [
+            "timecard_day_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "timecard_day_sources_attendance_interval_id_attendance_intervals_id_fk": {
+          "name": "timecard_day_sources_attendance_interval_id_attendance_intervals_id_fk",
+          "tableFrom": "timecard_day_sources",
+          "tableTo": "attendance_intervals",
+          "columnsFrom": [
+            "attendance_interval_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "timecard_day_sources_attendance_interval_correction_id_attendance_interval_corrections_id_fk": {
+          "name": "timecard_day_sources_attendance_interval_correction_id_attendance_interval_corrections_id_fk",
+          "tableFrom": "timecard_day_sources",
+          "tableTo": "attendance_interval_corrections",
+          "columnsFrom": [
+            "attendance_interval_correction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "timecard_day_sources_duration_positive": {
+          "name": "timecard_day_sources_duration_positive",
+          "value": "\"timecard_day_sources\".\"allocated_seconds\" > 0"
+        },
+        "timecard_day_sources_clock_order_check": {
+          "name": "timecard_day_sources_clock_order_check",
+          "value": "\"timecard_day_sources\".\"clock_out_snapshot\" > \"timecard_day_sources\".\"clock_in_snapshot\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.timecard_days": {
+      "name": "timecard_days",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "timecard_id": {
+          "name": "timecard_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "local_date": {
+          "name": "local_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "worked_seconds": {
+          "name": "worked_seconds",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "regular_seconds": {
+          "name": "regular_seconds",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "overtime_seconds": {
+          "name": "overtime_seconds",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "payable_overtime_minutes": {
+          "name": "payable_overtime_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "overtime_amount_minor": {
+          "name": "overtime_amount_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(3)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "timecard_days_card_date_unique": {
+          "name": "timecard_days_card_date_unique",
+          "columns": [
+            {
+              "expression": "timecard_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "local_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "timecard_days_card_date_idx": {
+          "name": "timecard_days_card_date_idx",
+          "columns": [
+            {
+              "expression": "timecard_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "local_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "timecard_days_timecard_id_timecards_id_fk": {
+          "name": "timecard_days_timecard_id_timecards_id_fk",
+          "tableFrom": "timecard_days",
+          "tableTo": "timecards",
+          "columnsFrom": [
+            "timecard_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "timecard_days_duration_nonnegative": {
+          "name": "timecard_days_duration_nonnegative",
+          "value": "\"timecard_days\".\"worked_seconds\" >= 0 AND \"timecard_days\".\"regular_seconds\" >= 0 AND \"timecard_days\".\"overtime_seconds\" >= 0 AND \"timecard_days\".\"payable_overtime_minutes\" >= 0"
+        },
+        "timecard_days_duration_reconcile": {
+          "name": "timecard_days_duration_reconcile",
+          "value": "\"timecard_days\".\"worked_seconds\" = \"timecard_days\".\"regular_seconds\" + \"timecard_days\".\"overtime_seconds\""
+        },
+        "timecard_days_amount_nonnegative": {
+          "name": "timecard_days_amount_nonnegative",
+          "value": "\"timecard_days\".\"overtime_amount_minor\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.timecard_events": {
+      "name": "timecard_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "timecard_id": {
+          "name": "timecard_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "timecard_event_action",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_profile_id": {
+          "name": "actor_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "prior_status": {
+          "name": "prior_status",
+          "type": "timecard_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resulting_status": {
+          "name": "resulting_status",
+          "type": "timecard_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason_code": {
+          "name": "reason_code",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "timecard_events_card_order_idx": {
+          "name": "timecard_events_card_order_idx",
+          "columns": [
+            {
+              "expression": "timecard_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "timecard_events_organization_id_organizations_id_fk": {
+          "name": "timecard_events_organization_id_organizations_id_fk",
+          "tableFrom": "timecard_events",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "timecard_events_timecard_id_timecards_id_fk": {
+          "name": "timecard_events_timecard_id_timecards_id_fk",
+          "tableFrom": "timecard_events",
+          "tableTo": "timecards",
+          "columnsFrom": [
+            "timecard_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "timecard_events_actor_profile_id_profiles_id_fk": {
+          "name": "timecard_events_actor_profile_id_profiles_id_fk",
+          "tableFrom": "timecard_events",
+          "tableTo": "profiles",
+          "columnsFrom": [
+            "actor_profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "timecard_events_note_length_check": {
+          "name": "timecard_events_note_length_check",
+          "value": "\"timecard_events\".\"note\" IS NULL OR char_length(\"timecard_events\".\"note\") BETWEEN 1 AND 500"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.timecards": {
+      "name": "timecards",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payroll_schedule_id": {
+          "name": "payroll_schedule_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_start": {
+          "name": "period_start",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_end": {
+          "name": "period_end",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "timecard_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "timezone": {
+          "name": "timezone",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "overtime_policy_id": {
+          "name": "overtime_policy_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pay_setting_id": {
+          "name": "pay_setting_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_version": {
+          "name": "policy_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "daily_threshold_minutes": {
+          "name": "daily_threshold_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_enabled": {
+          "name": "policy_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "overtime_eligible": {
+          "name": "overtime_eligible",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "standard_period_minutes": {
+          "name": "standard_period_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "overtime_multiplier_basis_points": {
+          "name": "overtime_multiplier_basis_points",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "base_gross_amount_minor": {
+          "name": "base_gross_amount_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "worked_seconds": {
+          "name": "worked_seconds",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "regular_seconds": {
+          "name": "regular_seconds",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "overtime_seconds": {
+          "name": "overtime_seconds",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "payable_overtime_minutes": {
+          "name": "payable_overtime_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "overtime_amount_minor": {
+          "name": "overtime_amount_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "zero_hours_confirmed": {
+          "name": "zero_hours_confirmed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "timecards_employee_period_unique": {
+          "name": "timecards_employee_period_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "payroll_schedule_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "period_start",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "period_end",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "timecards_id_organization_unique": {
+          "name": "timecards_id_organization_unique",
+          "columns": [
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "timecards_employee_period_idx": {
+          "name": "timecards_employee_period_idx",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "period_end",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "timecards_organization_status_period_idx": {
+          "name": "timecards_organization_status_period_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "period_end",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "timecards_organization_id_organizations_id_fk": {
+          "name": "timecards_organization_id_organizations_id_fk",
+          "tableFrom": "timecards",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "timecards_payroll_schedule_id_payroll_schedules_id_fk": {
+          "name": "timecards_payroll_schedule_id_payroll_schedules_id_fk",
+          "tableFrom": "timecards",
+          "tableTo": "payroll_schedules",
+          "columnsFrom": [
+            "payroll_schedule_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "timecards_overtime_policy_id_overtime_policies_id_fk": {
+          "name": "timecards_overtime_policy_id_overtime_policies_id_fk",
+          "tableFrom": "timecards",
+          "tableTo": "overtime_policies",
+          "columnsFrom": [
+            "overtime_policy_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "timecards_pay_setting_id_pay_settings_id_fk": {
+          "name": "timecards_pay_setting_id_pay_settings_id_fk",
+          "tableFrom": "timecards",
+          "tableTo": "pay_settings",
+          "columnsFrom": [
+            "pay_setting_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "timecards_period_order_check": {
+          "name": "timecards_period_order_check",
+          "value": "\"timecards\".\"period_end\" >= \"timecards\".\"period_start\""
+        },
+        "timecards_version_positive": {
+          "name": "timecards_version_positive",
+          "value": "\"timecards\".\"version\" > 0"
+        },
+        "timecards_threshold_range": {
+          "name": "timecards_threshold_range",
+          "value": "\"timecards\".\"daily_threshold_minutes\" BETWEEN 1 AND 1440"
+        },
+        "timecards_duration_nonnegative": {
+          "name": "timecards_duration_nonnegative",
+          "value": "\"timecards\".\"worked_seconds\" >= 0 AND \"timecards\".\"regular_seconds\" >= 0 AND \"timecards\".\"overtime_seconds\" >= 0 AND \"timecards\".\"payable_overtime_minutes\" >= 0"
+        },
+        "timecards_duration_reconcile": {
+          "name": "timecards_duration_reconcile",
+          "value": "\"timecards\".\"worked_seconds\" = \"timecards\".\"regular_seconds\" + \"timecards\".\"overtime_seconds\""
+        },
+        "timecards_amount_nonnegative": {
+          "name": "timecards_amount_nonnegative",
+          "value": "\"timecards\".\"base_gross_amount_minor\" > 0 AND \"timecards\".\"overtime_amount_minor\" >= 0"
+        },
+        "timecards_overtime_inputs_check": {
+          "name": "timecards_overtime_inputs_check",
+          "value": "(\"timecards\".\"policy_enabled\" = false OR \"timecards\".\"overtime_eligible\" = false) OR (\"timecards\".\"standard_period_minutes\" > 0 AND \"timecards\".\"overtime_multiplier_basis_points\" BETWEEN 10000 AND 50000)"
+        },
+        "timecards_approval_state_check": {
+          "name": "timecards_approval_state_check",
+          "value": "(\"timecards\".\"status\" = 'approved' AND \"timecards\".\"approved_at\" IS NOT NULL AND \"timecards\".\"submitted_at\" IS NOT NULL) OR (\"timecards\".\"status\" <> 'approved' AND \"timecards\".\"approved_at\" IS NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.attendance_source": {
+      "name": "attendance_source",
+      "schema": "public",
+      "values": [
+        "employee",
+        "manager",
+        "administrator",
+        "system"
+      ]
+    },
+    "public.attendance_status": {
+      "name": "attendance_status",
+      "schema": "public",
+      "values": [
+        "open",
+        "completed"
+      ]
+    },
+    "public.earning_type": {
+      "name": "earning_type",
+      "schema": "public",
+      "values": [
+        "overtime"
+      ]
+    },
+    "public.employee_status": {
+      "name": "employee_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "inactive",
+        "terminated"
+      ]
+    },
+    "public.leave_event_action": {
+      "name": "leave_event_action",
+      "schema": "public",
+      "values": [
+        "submitted",
+        "approved",
+        "declined",
+        "cancelled"
+      ]
+    },
+    "public.leave_status": {
+      "name": "leave_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "submitted",
+        "approved",
+        "declined",
+        "cancelled"
+      ]
+    },
+    "public.leave_type": {
+      "name": "leave_type",
+      "schema": "public",
+      "values": [
+        "paid",
+        "unpaid",
+        "sick",
+        "other"
+      ]
+    },
+    "public.membership_role": {
+      "name": "membership_role",
+      "schema": "public",
+      "values": [
+        "administrator",
+        "manager",
+        "employee"
+      ]
+    },
+    "public.membership_status": {
+      "name": "membership_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "inactive"
+      ]
+    },
+    "public.organization_status": {
+      "name": "organization_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "inactive"
+      ]
+    },
+    "public.pay_frequency": {
+      "name": "pay_frequency",
+      "schema": "public",
+      "values": [
+        "weekly",
+        "biweekly",
+        "semimonthly",
+        "monthly"
+      ]
+    },
+    "public.payout_status": {
+      "name": "payout_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "processing",
+        "finalized",
+        "failed"
+      ]
+    },
+    "public.payroll_attempt_outcome": {
+      "name": "payroll_attempt_outcome",
+      "schema": "public",
+      "values": [
+        "processing",
+        "succeeded",
+        "retryable_failure",
+        "failed"
+      ]
+    },
+    "public.payroll_status": {
+      "name": "payroll_status",
+      "schema": "public",
+      "values": [
+        "queued",
+        "processing",
+        "completed",
+        "failed"
+      ]
+    },
+    "public.payslip_status": {
+      "name": "payslip_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "generated",
+        "failed"
+      ]
+    },
+    "public.privacy_consent_type": {
+      "name": "privacy_consent_type",
+      "schema": "public",
+      "values": [
+        "product_analytics"
+      ]
+    },
+    "public.privacy_deletion_status": {
+      "name": "privacy_deletion_status",
+      "schema": "public",
+      "values": [
+        "processing",
+        "completed",
+        "failed"
+      ]
+    },
+    "public.privacy_request_resolution": {
+      "name": "privacy_request_resolution",
+      "schema": "public",
+      "values": [
+        "administrator_rejected",
+        "employee_withdrawn"
+      ]
+    },
+    "public.privacy_request_status": {
+      "name": "privacy_request_status",
+      "schema": "public",
+      "values": [
+        "submitted",
+        "under_review",
+        "approved",
+        "rejected",
+        "scheduled",
+        "completed",
+        "failed"
+      ]
+    },
+    "public.privacy_request_type": {
+      "name": "privacy_request_type",
+      "schema": "public",
+      "values": [
+        "deletion"
+      ]
+    },
+    "public.profile_status": {
+      "name": "profile_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "inactive"
+      ]
+    },
+    "public.queue_delivery_status": {
+      "name": "queue_delivery_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "submitted",
+        "failed"
+      ]
+    },
+    "public.timecard_event_action": {
+      "name": "timecard_event_action",
+      "schema": "public",
+      "values": [
+        "prepared",
+        "submitted",
+        "returned",
+        "resubmitted",
+        "approved",
+        "configuration_returned"
+      ]
+    },
+    "public.timecard_status": {
+      "name": "timecard_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "submitted",
+        "returned",
+        "approved"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

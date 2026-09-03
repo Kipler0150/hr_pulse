@@ -15,6 +15,8 @@ import { removePayslip, uploadVerifiedPayslip } from "@/lib/storage";
 import { PayrollError, serializePayrollError } from "./errors";
 import { sha256 } from "./fingerprint";
 import { recordPayrollMetric } from "./telemetry";
+import { isProductOperationsEnabled } from "@/product-operations/config";
+import { recordOperationFailure, recordProductEvent } from "@/product-operations/writers";
 
 const LEASE_MS = 5 * 60 * 1000;
 const PAYSLIP_TEMPLATE_VERSION = 1;
@@ -48,6 +50,13 @@ async function claimRun({ runId, organizationId, generation, eventId }) {
       status: "processing", leaseOwner: eventId, leaseExpiresAt, lastProgressAt: new Date(), errorCode: null, errorGuidance: null, updatedAt: new Date(),
     }).where(eq(payrollRuns.id, runId));
     await transaction.update(payouts).set({ status: "processing", errorCode: null, errorGuidance: null, updatedAt: new Date() }).where(eq(payouts.payrollRunId, runId));
+    if (isProductOperationsEnabled()) await writeAuditEvent(transaction, {
+      organizationId,
+      action: "payroll.processing",
+      entityType: "payroll_run",
+      entityId: run.id,
+      metadata: { resultingVersion: run.processingGeneration },
+    });
     return { ...run, status: "processing", leaseOwner: eventId, leaseExpiresAt, attemptId: attempt.id };
   });
 }
@@ -116,6 +125,16 @@ async function finalizeRun(run, attemptId, eventId) {
       entityId: run.id,
       metadata: { processingGeneration: run.processingGeneration, calculationVersion: run.calculationVersion },
     });
+    if (isProductOperationsEnabled()) await recordProductEvent({
+      db: transaction,
+      organizationId: run.organizationId,
+      eventName: "payroll.completed",
+      workflowArea: "payroll",
+      resultCategory: "success",
+      durationMs: null,
+      occurrenceIdentity: `${run.id}:completed`,
+      analyticsProfileId: run.confirmedByProfileId,
+    });
   });
 }
 
@@ -146,6 +165,18 @@ export async function processPayrollRun({ runId, organizationId, generation, eve
         eq(payrollRuns.leaseOwner, eventId),
       ));
     recordPayrollMetric({ operation: "payroll.calculation", organizationId, entityId: run.id, code: safe.code, durationMs: Date.now() - startedAt });
+    if (isProductOperationsEnabled()) await recordOperationFailure({
+      db: database,
+      organizationId,
+      operation: "payroll.calculation",
+      safeCode: safe.code,
+      affectedEntityType: "payroll_run",
+      affectedEntityId: run.id,
+      workflowArea: "payroll",
+      workflowStatus: "processing",
+      recoveryAvailable: true,
+      analyticsProfileId: run.confirmedByProfileId,
+    });
     Sentry.captureException(error, { tags: { organizationId, runId, attemptId: run.attemptId, code: safe.code } });
     throw error;
   }
@@ -172,8 +203,32 @@ export async function failPayrollRun({ runId, organizationId, generation, error 
       action: "payroll.failed",
       entityType: "payroll_run",
       entityId: runId,
+      result: "unexpected_error",
       metadata: { processingGeneration: generation, errorCode: safe.code },
     });
+    if (isProductOperationsEnabled()) {
+      await recordProductEvent({
+        db: transaction,
+        organizationId,
+        eventName: "payroll.failed",
+        workflowArea: "payroll",
+        resultCategory: "unexpected_error",
+        occurrenceIdentity: `${runId}:failed`,
+        analyticsProfileId: run.confirmedByProfileId,
+      });
+      await recordOperationFailure({
+        db: transaction,
+        organizationId,
+        operation: "payroll.calculation",
+        safeCode: safe.code,
+        affectedEntityType: "payroll_run",
+        affectedEntityId: runId,
+        workflowArea: "payroll",
+        workflowStatus: "failed",
+        recoveryAvailable: true,
+        analyticsProfileId: run.confirmedByProfileId,
+      });
+    }
   });
   Sentry.captureException(error, { tags: { organizationId, runId, code: safe.code, exhausted: "true" } });
 }

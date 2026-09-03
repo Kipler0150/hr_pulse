@@ -1,10 +1,15 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
+import { getDb } from "@/db";
 import { validateUuid } from "@/db/validation";
 import { getAccessState, safeReturnTo } from "@/auth/access";
+import { writeAuditEvent } from "@/lib/audit";
 import { createClient, createRecoveryClient } from "@/lib/supabase/server";
+import { isProductOperationsEnabled } from "@/product-operations/config";
+import { recordProductEvent } from "@/product-operations/writers";
 
 const genericAuthError = "We could not complete that request. Check your details and try again.";
 const resetConfirmation = "If an account matches that email, you will receive a recovery link shortly.";
@@ -35,6 +40,29 @@ export async function signIn(previousState, formData) {
   if (!state.profile || state.profile.status !== "active" || state.memberships.length === 0) {
     redirect("/pending-access");
   }
+  if (isProductOperationsEnabled()) {
+    const organizationId = state.memberships[0].organizationId;
+    const operationRequestId = formData.get("requestId") && /^[0-9a-f-]{36}$/i.test(String(formData.get("requestId")))
+      ? String(formData.get("requestId"))
+      : randomUUID();
+    await writeAuditEvent(getDb(), {
+      organizationId,
+      actorProfileId: state.profile.id,
+      action: "auth.sign_in_succeeded",
+      entityType: "access",
+      entityId: organizationId,
+      result: "success",
+      correlationId: operationRequestId,
+    });
+    await recordProductEvent({
+      organizationId,
+      eventName: "auth.sign_in_succeeded",
+      workflowArea: "auth",
+      resultCategory: "success",
+      occurrenceIdentity: operationRequestId,
+      ...(state.profile.id ? { analyticsProfileId: state.profile.id } : {}),
+    });
+  }
   if (state.memberships.length > 1) {
     redirect(`/choose-organization?returnTo=${encodeURIComponent(returnTo)}`);
   }
@@ -51,11 +79,20 @@ export async function signIn(previousState, formData) {
 export async function signOut() {
   const supabase = await createClient();
   const cookieStore = await cookies();
+  const selectedOrganizationId = cookieStore.get?.("hr_pulse_organization_id")?.value;
   let signOutError = null;
   try {
     ({ error: signOutError } = await supabase.auth.signOut());
   } catch (error) {
     signOutError = error;
+  }
+  if (!signOutError && isProductOperationsEnabled() && selectedOrganizationId) {
+    try {
+      validateUuid(selectedOrganizationId, "organizationId");
+      await writeAuditEvent(getDb(), { organizationId: selectedOrganizationId, action: "auth.sign_out", entityType: "access", entityId: selectedOrganizationId });
+    } catch {
+      // Sign out remains successful when operational telemetry is unavailable.
+    }
   }
   cookieStore.delete("hr_pulse_organization_id");
   for (const { name } of cookieStore.getAll()) {

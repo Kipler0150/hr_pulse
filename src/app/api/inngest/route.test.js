@@ -18,6 +18,6 @@ describe("Inngest route", () => {
 
     expect(response.status).toBe(200);
     expect(body.mode).toBe("dev");
-    expect(body.function_count).toBe(2);
+    expect(body.function_count).toBe(3);
   }, 15_000);
 });

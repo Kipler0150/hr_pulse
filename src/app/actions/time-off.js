@@ -5,6 +5,7 @@ import { requireTimeOffContext } from "@/time-off/access";
 import { TimeOffError, serializeTimeOffError } from "@/time-off/config";
 import { validateRequestInput, normalizeText, assertRetryRequestId } from "@/time-off/domain";
 import { recordTimeOffMetric, reportTimeOffFailure } from "@/time-off/telemetry";
+import { recordProductMilestone } from "@/product-operations/integration";
 
 function safeActionError(error) {
   return error instanceof TimeOffError ? error : new TimeOffError("TIME_OFF_REQUEST_FAILED", { cause: error });
@@ -22,6 +23,15 @@ async function mutation({ operation, rpc, input, map }) {
     const result = Array.isArray(data) ? data[0] : data;
     const retryOutcome = result?.retryOutcome === "created" ? "new" : result?.retryOutcome;
     recordTimeOffMetric({ operation: `time_off.${operation}`, organizationId: context.organizationId, requestId: input?.requestId, retryOutcome, durationMs: Date.now() - startedAt });
+    const milestone = { submit: "time_off.submitted", approve: "time_off.approved", decline: "time_off.declined" }[operation];
+    if (milestone && result?.id && result?.version) await recordProductMilestone({
+      organizationId: context.organizationId,
+      eventName: milestone,
+      workflowArea: "time_off",
+      resultCategory: "success",
+      occurrenceIdentity: `${result.id}:${result.version}`,
+      analyticsProfileId: context.profile?.id,
+    });
     return { success: true, result: retryOutcome ? { ...result, retryOutcome } : result };
   } catch (error) {
     const safe = safeActionError(error);

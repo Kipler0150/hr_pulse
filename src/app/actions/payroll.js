@@ -34,6 +34,7 @@ import { serializePayrollError } from "@/payroll/errors";
 import { getPeriodContaining, nextDate } from "@/payroll/periods";
 import { submitPayrollRun } from "@/payroll/queue";
 import { confirmPayroll, getPayrollRun, previewPayroll } from "@/payroll/service";
+import { recordProductMilestone } from "@/product-operations/integration";
 
 function actionError(error) {
   const payrollError = serializePayrollError(error);
@@ -118,6 +119,14 @@ export async function saveEmployeeAction(previousState, formData) {
         metadata: { profileLinked: Boolean(profileId), profileAction },
       });
       return saved;
+    });
+    if (!employeeId) await recordProductMilestone({
+      organizationId: context.organizationId,
+      eventName: "setup.employee_created",
+      workflowArea: "setup",
+      resultCategory: "success",
+      occurrenceIdentity: `${employee.id}:${employee.version}`,
+      analyticsProfileId: context.profile?.id,
     });
     revalidatePath("/payroll/employees");
     return { success: true, employeeId: employee.id };
@@ -360,7 +369,7 @@ export async function confirmPayrollAction(previousState, formData) {
     let queueWarning = null;
     if (!result.duplicate && result.run.status === "queued") {
       try {
-        await submitPayrollRun({ runId: result.run.id, organizationId: context.organizationId, generation: result.run.processingGeneration });
+        await submitPayrollRun({ runId: result.run.id, organizationId: context.organizationId, generation: result.run.processingGeneration, analyticsProfileId: context.profile?.id });
       } catch (error) { queueWarning = serializePayrollError(error); }
     }
     revalidatePath("/payroll");
@@ -373,7 +382,7 @@ export async function resubmitPayrollAction(formData) {
   const runId = validateUuid(text(formData, "runId"), "runId");
   const detail = await getPayrollRun(context.organizationId, runId);
   if (detail.run.status !== "queued") return;
-  await submitPayrollRun({ runId, organizationId: context.organizationId, generation: detail.run.processingGeneration });
+  await submitPayrollRun({ runId, organizationId: context.organizationId, generation: detail.run.processingGeneration, analyticsProfileId: context.profile?.id });
   revalidatePath(`/payroll/runs/${runId}`);
 }
 
@@ -424,7 +433,7 @@ export async function retryPayrollAction(formData) {
     });
     return updated;
   });
-  await submitPayrollRun({ runId, organizationId: context.organizationId, generation: run.processingGeneration }).catch(() => {});
+  await submitPayrollRun({ runId, organizationId: context.organizationId, generation: run.processingGeneration, analyticsProfileId: context.profile?.id }).catch(() => {});
   revalidatePath(`/payroll/runs/${runId}`);
 }
 

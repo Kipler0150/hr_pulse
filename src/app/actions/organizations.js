@@ -8,6 +8,7 @@ import { getCurrencyExponent } from "@/payroll/currency";
 import { writeAuditEvent } from "@/lib/audit";
 import { createClient } from "@/lib/supabase/server";
 import { canFoundOrganization } from "@/auth/access";
+import { recordProductMilestone } from "@/product-operations/integration";
 
 function slugify(value) {
   const slug = value.toLocaleLowerCase("en").trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90);
@@ -42,7 +43,7 @@ export async function createOrganization({ name, timezone, defaultCurrency, freq
   if (!canFoundOrganization(user)) throw new Error("Organization founding is not available for this account");
 
   const db = getDb();
-  return db.transaction(async (transaction) => {
+  const result = await db.transaction(async (transaction) => {
     const [profile] = await transaction.select().from(profiles).where(eq(profiles.authUserId, user.id));
     if (!profile || profile.status !== "active") throw new Error("An active provisioned profile is required");
     const [existingFounder] = await transaction.select({ id: organizations.id }).from(organizations).where(eq(organizations.foundingProfileId, profile.id));
@@ -76,6 +77,21 @@ export async function createOrganization({ name, timezone, defaultCurrency, freq
       entityId: organization.id,
       metadata: { scheduleId: schedule.id, scheduleVersion: schedule.version },
     });
-    return { organizationId: organization.id, slug, status: organization.status, administratorMembershipId: membership.id, payrollScheduleId: schedule.id };
+    return { organizationId: organization.id, slug, status: organization.status, administratorMembershipId: membership.id, payrollScheduleId: schedule.id, founderProfileId: profile.id, occurrenceIdentity: `${organization.id}:${organization.updatedAt?.toISOString() ?? "created"}` };
   });
+  await recordProductMilestone({
+    organizationId: result.organizationId,
+    eventName: "setup.organization_completed",
+    workflowArea: "setup",
+    resultCategory: "success",
+    occurrenceIdentity: result.occurrenceIdentity,
+    analyticsProfileId: result.founderProfileId,
+  });
+  return {
+    organizationId: result.organizationId,
+    slug: result.slug,
+    status: result.status,
+    administratorMembershipId: result.administratorMembershipId,
+    payrollScheduleId: result.payrollScheduleId,
+  };
 }

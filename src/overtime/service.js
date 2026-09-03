@@ -6,7 +6,6 @@ import { getDb } from "@/db";
 import {
   attendanceIntervalCorrections,
   attendanceIntervals,
-  auditEvents,
   employees,
   memberships,
   mutationReceipts,
@@ -22,6 +21,8 @@ import {
   timecards,
 } from "@/db/schema";
 import { writeAuditEvent } from "@/lib/audit";
+import { isProductOperationsEnabled } from "@/product-operations/config";
+import { recordProductEvent } from "@/product-operations/writers";
 import { getOrganizationLocalDate, getNextPeriod, getPeriodContaining, isClosedPeriod } from "@/payroll/periods";
 import { normalizeDayBoundary } from "./boundaries";
 import { calculateTimecard } from "./calculator";
@@ -347,6 +348,7 @@ export async function submitTimecard({ context, timecardId, expectedVersion, zer
     await transaction.insert(timecardEvents).values({ organizationId: context.organizationId, timecardId: card.id, action, actorProfileId: context.profile.id, priorStatus: card.status, resultingStatus: "submitted" });
     await addReceipt(transaction, { context, operation, requestId, payloadHash, entityType: "timecard", entityId: updated.id, version: updated.version });
     await writeAuditEvent(transaction, { organizationId: context.organizationId, actorProfileId: context.profile.id, action: `timecard.${action}`, entityType: "timecard", entityId: card.id, metadata: { employeeId: employee.id, status: updated.status, version: updated.version, workedSeconds: updated.workedSeconds } });
+    if (isProductOperationsEnabled()) await recordProductEvent({ db: transaction, organizationId: context.organizationId, eventName: "timecard.submitted", workflowArea: "timecards", resultCategory: "success", occurrenceIdentity: `${updated.id}:${updated.version}`, analyticsProfileId: context.profile?.id });
     return { card: updated, duplicate: false };
   });
 }
@@ -390,6 +392,7 @@ async function transitionReview({ context, timecardId, expectedVersion, note, fa
     });
     await addReceipt(transaction, { context, operation, requestId, payloadHash, entityType: "timecard", entityId: updated.id, version: updated.version });
     await writeAuditEvent(transaction, { organizationId: context.organizationId, actorProfileId: context.profile.id, action: `timecard.${action}`, entityType: "timecard", entityId: card.id, metadata: { employeeId: card.employeeId, status: resultingStatus, version: updated.version, reasonCode: drifted ? "CONFIGURATION_DRIFT" : reviewer.fallback ? "ADMINISTRATOR_FALLBACK" : null } });
+    if (isProductOperationsEnabled() && resultingStatus === "approved") await recordProductEvent({ db: transaction, organizationId: context.organizationId, eventName: "timecard.approved", workflowArea: "timecards", resultCategory: "success", occurrenceIdentity: `${updated.id}:${updated.version}`, analyticsProfileId: context.profile?.id });
     return { card: updated, duplicate: false, configurationDrift: drifted };
   });
 }
@@ -559,5 +562,12 @@ export async function insertPayoutEarningLine(transaction, payout, card) {
 }
 
 export async function writePayrollTimecardAudit(transaction, organizationId, actorProfileId, runId, cards) {
-  await transaction.insert(auditEvents).values({ organizationId, actorProfileId, action: "payroll.timecards_consumed", entityType: "payroll_run", entityId: runId, metadata: { approvedTimecardCount: cards.length } });
+  await writeAuditEvent(transaction, {
+    organizationId,
+    actorProfileId,
+    action: "payroll.timecards_consumed",
+    entityType: "payroll_run",
+    entityId: runId,
+    metadata: { resultingVersion: cards.length },
+  });
 }

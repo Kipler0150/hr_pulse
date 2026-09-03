@@ -7,6 +7,7 @@ import { validateUuid } from "@/db/validation";
 import { requireSelfServiceContext } from "@/self-service/access";
 import { SelfServiceError, serializeSelfServiceError } from "@/self-service/errors";
 import { recordSelfServiceMetric, reportSelfServiceFailure } from "@/self-service/telemetry";
+import { recordProductMilestone } from "@/product-operations/integration";
 
 function text(formData, name) { return String(formData.get(name) ?? ""); }
 
@@ -36,6 +37,7 @@ export async function updateSelfServiceProfileAction(previousState, formData) {
     revalidatePath("/self-service");
     revalidatePath("/self-service/profile");
     recordSelfServiceMetric({ operation: "self_service.profile.update", organizationId: context.organizationId, employeeId: context.employee.id, result: "success", retryOutcome: data?.replayed ? "replayed" : "new", durationMs: Date.now() - startedAt });
+    await recordProductMilestone({ organizationId: context.organizationId, eventName: "self_service.profile_updated", workflowArea: "self_service", resultCategory: "success", occurrenceIdentity: `${context.employee.id}:${data?.version ?? expectedVersion + 1}`, analyticsProfileId: context.profile?.id });
     return { success: true, message: "Your contact details are current.", result: data };
   } catch (error) {
     reportSelfServiceFailure(error, { operation: "self_service.profile.update", organizationId: context?.organizationId, employeeId: context?.employee.id, durationMs: Date.now() - startedAt });

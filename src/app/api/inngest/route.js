@@ -1,8 +1,9 @@
 import { serve } from "inngest/next";
 import { inngest } from "@/inngest/client";
 import { processPayroll } from "@/inngest/payroll";
+import { runPrivacyRetentionDaily } from "@/inngest/privacy";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [processPayroll],
+  functions: [processPayroll, runPrivacyRetentionDaily],
 });

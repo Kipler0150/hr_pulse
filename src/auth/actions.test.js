@@ -2,11 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn(), createRecoveryClient: vi.fn() }));
 vi.mock("@/auth/access", () => ({ getAccessState: vi.fn(), safeReturnTo: (value) => value?.startsWith("/") && !value.startsWith("//") ? value : "/dashboard" }));
+vi.mock("@/db", () => ({ getDb: vi.fn(() => ({})) }));
+vi.mock("@/lib/audit", () => ({ writeAuditEvent: vi.fn() }));
+vi.mock("@/product-operations/writers", () => ({ recordProductEvent: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn((path) => { const error = new Error("redirect"); error.digest = `NEXT_REDIRECT;${path}`; throw error; }) }));
 vi.mock("next/headers", () => ({ cookies: vi.fn().mockResolvedValue({ set: vi.fn(), delete: vi.fn() }) }));
 
 import { createClient, createRecoveryClient } from "@/lib/supabase/server";
 import { getAccessState } from "@/auth/access";
+import { writeAuditEvent } from "@/lib/audit";
+import { recordProductEvent } from "@/product-operations/writers";
 import { cookies } from "next/headers";
 import { chooseOrganization, requestPasswordReset, signIn, signOut, updatePassword } from "./actions";
 
@@ -18,6 +23,7 @@ function form(values) {
 
 describe("authentication actions", () => {
   beforeEach(() => {
+    vi.unstubAllEnvs();
     vi.clearAllMocks();
   });
 
@@ -72,6 +78,57 @@ describe("authentication actions", () => {
     getAccessState.mockResolvedValue({ profile: { status: "active" }, memberships: [{ organizationId: "org-id" }] });
 
     await expect(signIn(null, form({ email: "person@example.com", password: "password", returnTo: "/reports" }))).rejects.toMatchObject({ digest: "NEXT_REDIRECT;/reports" });
+  });
+
+  it("records a sign in milestone before redirecting a multi organization user", async () => {
+    vi.stubEnv("HR_PULSE_PRODUCT_OPERATIONS_ENABLED", "true");
+    createClient.mockResolvedValue({ auth: { signInWithPassword: vi.fn().mockResolvedValue({ error: null }) } });
+    getAccessState.mockResolvedValue({
+      profile: { status: "active" },
+      memberships: [{ organizationId: "first-organization" }, { organizationId: "second-organization" }],
+    });
+    const requestId = "123e4567-e89b-12d3-a456-426614174000";
+
+    await expect(signIn(null, form({ email: "person@example.com", password: "password", requestId }))).rejects.toMatchObject({ digest: "NEXT_REDIRECT;/choose-organization?returnTo=%2Fdashboard" });
+    expect(recordProductEvent).toHaveBeenCalledWith({
+      organizationId: "first-organization",
+      eventName: "auth.sign_in_succeeded",
+      workflowArea: "auth",
+      resultCategory: "success",
+      occurrenceIdentity: requestId,
+    });
+  });
+
+  it("records a safe sign in audit event before redirecting", async () => {
+    vi.stubEnv("HR_PULSE_PRODUCT_OPERATIONS_ENABLED", "true");
+    createClient.mockResolvedValue({ auth: { signInWithPassword: vi.fn().mockResolvedValue({ error: null }) } });
+    getAccessState.mockResolvedValue({
+      profile: { id: "profile-id", status: "active" },
+      memberships: [{ organizationId: "org-id" }],
+    });
+    const requestId = "123e4567-e89b-12d3-a456-426614174000";
+
+    await expect(signIn(null, form({ email: "person@example.com", password: "password", requestId }))).rejects.toMatchObject({ digest: "NEXT_REDIRECT;/dashboard" });
+
+    expect(writeAuditEvent).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: "org-id",
+      actorProfileId: "profile-id",
+      action: "auth.sign_in_succeeded",
+      entityType: "access",
+      entityId: "org-id",
+      result: "success",
+      correlationId: requestId,
+    });
+  });
+
+  it("does not record a sign in milestone when product operations are disabled", async () => {
+    vi.stubEnv("HR_PULSE_PRODUCT_OPERATIONS_ENABLED", "false");
+    createClient.mockResolvedValue({ auth: { signInWithPassword: vi.fn().mockResolvedValue({ error: null }) } });
+    getAccessState.mockResolvedValue({ profile: { status: "active" }, memberships: [{ organizationId: "org-id" }] });
+
+    await expect(signIn(null, form({ email: "person@example.com", password: "password" }))).rejects.toMatchObject({ digest: "NEXT_REDIRECT;/dashboard" });
+    expect(recordProductEvent).not.toHaveBeenCalled();
+    expect(writeAuditEvent).not.toHaveBeenCalled();
   });
 
   it("clears the organization cookie when signing out", async () => {

@@ -27,6 +27,8 @@ import { decodeCursor, decodeTimestampCursor, encodeCursor, encodeTimestampCurso
 import { isOvertimeEnabled } from "@/overtime/config";
 import { getApprovedTimecardsForPayroll, insertPayoutEarningLine, overtimeFingerprintRows, writePayrollTimecardAudit } from "@/overtime/service";
 import { recordPayrollMetric } from "./telemetry";
+import { isProductOperationsEnabled } from "@/product-operations/config";
+import { recordProductEvent } from "@/product-operations/writers";
 
 const PREVIEW_LIFETIME_MS = 30 * 60 * 1000;
 const DELAYED_AFTER_MS = 30 * 60 * 1000;
@@ -235,6 +237,16 @@ export async function previewPayroll({ organizationId, actorProfileId, persistTo
       tokenHash,
       expiresAt,
     });
+    if (isProductOperationsEnabled()) await recordProductEvent({
+      db: database,
+      organizationId,
+      eventName: "payroll.preview_created",
+      workflowArea: "payroll",
+      resultCategory: "success",
+      durationMs: Date.now() - startedAt,
+      occurrenceIdentity: `${preview.fingerprint}:${preview.period.periodEnd}`,
+      analyticsProfileId: actorProfileId,
+    });
     return { ...preview, totals, token, expiresAt };
   } catch (error) {
     if (recordBlockedTelemetry) {
@@ -341,6 +353,16 @@ export async function confirmPayroll({ organizationId, actorProfileId, token }) 
       entityType: "payroll_run",
       entityId: run.id,
       metadata: { calculationVersion: PAYROLL_CALCULATION_VERSION, status: "queued" },
+    });
+    if (isProductOperationsEnabled()) await recordProductEvent({
+      db: transaction,
+      organizationId,
+      eventName: "payroll.confirmed",
+      workflowArea: "payroll",
+      resultCategory: "success",
+      durationMs: Date.now() - startedAt,
+      occurrenceIdentity: `${run.id}:confirmed`,
+      analyticsProfileId: actorProfileId,
     });
     if (isOvertimeEnabled()) await writePayrollTimecardAudit(transaction, organizationId, actorProfileId, run.id, preview.rows.map((row) => row.timecard));
     return { run, duplicate: false };

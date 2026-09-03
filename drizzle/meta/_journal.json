@@ -211,6 +211,83 @@
       "when": 1788250000000,
       "tag": "0029_employee_self_service",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1788365388113,
+      "tag": "0030_audit_history_product_operations",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1788440000000,
+      "tag": "0031_audit_context_defaults",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1788441000000,
+      "tag": "0032_audit_milestone_projection",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1788442000000,
+      "tag": "0033_gate_product_milestone_writes",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1788443000000,
+      "tag": "0034_operational_catalog_checks",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1788444000000,
+      "tag": "0035_align_audit_history_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1788445000000,
+      "tag": "0036_align_audit_action_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1788446000000,
+      "tag": "0037_small_sabra",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1788447000000,
+      "tag": "0038_sloppy_bastion",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1788448000000,
+      "tag": "0039_complete_meggan",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1788449000000,
+      "tag": "0040_petite_karnak",
+      "breakpoints": true
     }
   ]
 }

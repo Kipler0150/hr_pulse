@@ -9,6 +9,8 @@ import { requirePayrollAdministrator } from "@/payroll/access";
 import { PayrollError } from "@/payroll/errors";
 import { isSelfServiceEnabled } from "@/self-service/config";
 import { requireSelfServiceContext } from "@/self-service/access";
+import { randomUUID } from "node:crypto";
+import { recordProductMilestone } from "@/product-operations/integration";
 
 export async function GET(request, { params }) {
   try {
@@ -54,6 +56,7 @@ export async function GET(request, { params }) {
     } catch (error) {
       throw new PayrollError("PAYSLIP_UNAVAILABLE", { cause: error });
     }
+    await recordProductMilestone({ organizationId: context.organizationId, eventName: "self_service.payslip_downloaded", workflowArea: "self_service", resultCategory: "success", occurrenceIdentity: `${payslipId}:${randomUUID()}`, analyticsProfileId: context.profile?.id });
     return NextResponse.json({ url, expiresIn: 60 });
   } catch (error) { return jsonError(error); }
 }

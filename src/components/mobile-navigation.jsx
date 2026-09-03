@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Building2Icon, CalendarClockIcon, ClipboardCheckIcon, LandmarkIcon, LayoutDashboardIcon, MenuIcon, UserRoundIcon } from "lucide-react";
+import { ActivityIcon, Building2Icon, CalendarClockIcon, ClipboardCheckIcon, LandmarkIcon, LayoutDashboardIcon, MenuIcon, ShieldCheckIcon, UserRoundIcon } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
-export function MobileNavigation({ attendance = null, organizationName, switchOrganization, footer, payroll = false, selfService = null, timecards = null, timeOff = null }) {
+export function MobileNavigation({ adminPrivacy = null, attendance = null, organizationName, switchOrganization, footer, operations = null, payroll = false, privacy = null, selfService = null, timecards = null, timeOff = null }) {
   return (
     <Sheet>
       <SheetTrigger render={<Button aria-label="Open navigation" size="icon-comfortable" variant="ghost" />}>
@@ -36,6 +36,7 @@ export function MobileNavigation({ attendance = null, organizationName, switchOr
               Payroll
             </Link>
           ) : null}
+          {operations ? <Link className={cn(buttonVariants({ size: "comfortable", variant: "ghost" }), "justify-start")} data-slot="navigation-link" href={operations}><ActivityIcon data-icon="inline-start" />Operations</Link> : null}
           {attendance ? (
             <Link className={cn(buttonVariants({ size: "comfortable", variant: "ghost" }), "justify-start")} data-slot="navigation-link" href={attendance}>
               <CalendarClockIcon data-icon="inline-start" />
@@ -55,6 +56,8 @@ export function MobileNavigation({ attendance = null, organizationName, switchOr
             </Link>
           ) : null}
           {selfService ? <Link className={cn(buttonVariants({ size: "comfortable", variant: "ghost" }), "justify-start")} data-slot="navigation-link" href={selfService}><UserRoundIcon data-icon="inline-start" />My self service</Link> : null}
+          {privacy ? <Link className={cn(buttonVariants({ size: "comfortable", variant: "ghost" }), "justify-start")} data-slot="navigation-link" href={privacy}><ShieldCheckIcon data-icon="inline-start" />Privacy</Link> : null}
+          {adminPrivacy ? <Link className={cn(buttonVariants({ size: "comfortable", variant: "ghost" }), "justify-start")} data-slot="navigation-link" href={adminPrivacy}><ShieldCheckIcon data-icon="inline-start" />Privacy operations</Link> : null}
           {switchOrganization ? (
             <Link className={cn(buttonVariants({ size: "comfortable", variant: "ghost" }), "justify-start")} data-slot="navigation-link" href="/choose-organization">
               <Building2Icon data-icon="inline-start" />
