@@ -21,8 +21,7 @@ import {
   timecards,
 } from "@/db/schema";
 import { writeAuditEvent } from "@/lib/audit";
-import { isProductOperationsEnabled } from "@/product-operations/config";
-import { recordProductEvent } from "@/product-operations/writers";
+import { recordProductMilestone } from "@/product-operations/integration";
 import { getOrganizationLocalDate, getNextPeriod, getPeriodContaining, isClosedPeriod } from "@/payroll/periods";
 import { normalizeDayBoundary } from "./boundaries";
 import { calculateTimecard } from "./calculator";
@@ -313,7 +312,7 @@ async function lockCard(transaction, context, timecardId) {
 export async function submitTimecard({ context, timecardId, expectedVersion, zeroHoursConfirmed, requestId }) {
   const operation = "timecard.submit";
   const payloadHash = hashPayload({ timecardId, expectedVersion, zeroHoursConfirmed });
-  return getDb().transaction(async (transaction) => {
+  const result = await getDb().transaction(async (transaction) => {
     const duplicate = await existingReceipt(transaction, { organizationId: context.organizationId, operation, requestId, payloadHash });
     if (duplicate) return duplicate;
     const card = await lockCard(transaction, context, timecardId);
@@ -348,9 +347,17 @@ export async function submitTimecard({ context, timecardId, expectedVersion, zer
     await transaction.insert(timecardEvents).values({ organizationId: context.organizationId, timecardId: card.id, action, actorProfileId: context.profile.id, priorStatus: card.status, resultingStatus: "submitted" });
     await addReceipt(transaction, { context, operation, requestId, payloadHash, entityType: "timecard", entityId: updated.id, version: updated.version });
     await writeAuditEvent(transaction, { organizationId: context.organizationId, actorProfileId: context.profile.id, action: `timecard.${action}`, entityType: "timecard", entityId: card.id, metadata: { employeeId: employee.id, status: updated.status, version: updated.version, workedSeconds: updated.workedSeconds } });
-    if (isProductOperationsEnabled()) await recordProductEvent({ db: transaction, organizationId: context.organizationId, eventName: "timecard.submitted", workflowArea: "timecards", resultCategory: "success", occurrenceIdentity: `${updated.id}:${updated.version}`, analyticsProfileId: context.profile?.id });
     return { card: updated, duplicate: false };
   });
+  if (!result.duplicate && !result.frozen) await recordProductMilestone({
+    organizationId: context.organizationId,
+    eventName: "timecard.submitted",
+    workflowArea: "timecards",
+    resultCategory: "success",
+    occurrenceIdentity: `${result.card.id}:${result.card.version}`,
+    analyticsProfileId: context.profile?.id,
+  });
+  return result;
 }
 
 async function assertReviewer(transaction, context, card, fallbackReason) {
@@ -367,7 +374,7 @@ async function assertReviewer(transaction, context, card, fallbackReason) {
 async function transitionReview({ context, timecardId, expectedVersion, note, fallbackReason, requestId, decision }) {
   const operation = `timecard.${decision}`;
   const payloadHash = hashPayload({ timecardId, expectedVersion, note, fallbackReason });
-  return getDb().transaction(async (transaction) => {
+  const result = await getDb().transaction(async (transaction) => {
     const duplicate = await existingReceipt(transaction, { organizationId: context.organizationId, operation, requestId, payloadHash });
     if (duplicate) return duplicate;
     const card = await lockCard(transaction, context, timecardId);
@@ -392,9 +399,17 @@ async function transitionReview({ context, timecardId, expectedVersion, note, fa
     });
     await addReceipt(transaction, { context, operation, requestId, payloadHash, entityType: "timecard", entityId: updated.id, version: updated.version });
     await writeAuditEvent(transaction, { organizationId: context.organizationId, actorProfileId: context.profile.id, action: `timecard.${action}`, entityType: "timecard", entityId: card.id, metadata: { employeeId: card.employeeId, status: resultingStatus, version: updated.version, reasonCode: drifted ? "CONFIGURATION_DRIFT" : reviewer.fallback ? "ADMINISTRATOR_FALLBACK" : null } });
-    if (isProductOperationsEnabled() && resultingStatus === "approved") await recordProductEvent({ db: transaction, organizationId: context.organizationId, eventName: "timecard.approved", workflowArea: "timecards", resultCategory: "success", occurrenceIdentity: `${updated.id}:${updated.version}`, analyticsProfileId: context.profile?.id });
     return { card: updated, duplicate: false, configurationDrift: drifted };
   });
+  if (!result.duplicate && result.card.status === "approved") await recordProductMilestone({
+    organizationId: context.organizationId,
+    eventName: "timecard.approved",
+    workflowArea: "timecards",
+    resultCategory: "success",
+    occurrenceIdentity: `${result.card.id}:${result.card.version}`,
+    analyticsProfileId: context.profile?.id,
+  });
+  return result;
 }
 
 export function approveTimecard(input) { return transitionReview({ ...input, decision: "approve" }); }

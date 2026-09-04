@@ -4,14 +4,14 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn(), createRecoveryC
 vi.mock("@/auth/access", () => ({ getAccessState: vi.fn(), safeReturnTo: (value) => value?.startsWith("/") && !value.startsWith("//") ? value : "/dashboard" }));
 vi.mock("@/db", () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock("@/lib/audit", () => ({ writeAuditEvent: vi.fn() }));
-vi.mock("@/product-operations/writers", () => ({ recordProductEvent: vi.fn() }));
+vi.mock("@/product-operations/integration", () => ({ recordProductMilestone: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn((path) => { const error = new Error("redirect"); error.digest = `NEXT_REDIRECT;${path}`; throw error; }) }));
 vi.mock("next/headers", () => ({ cookies: vi.fn().mockResolvedValue({ set: vi.fn(), delete: vi.fn() }) }));
 
 import { createClient, createRecoveryClient } from "@/lib/supabase/server";
 import { getAccessState } from "@/auth/access";
 import { writeAuditEvent } from "@/lib/audit";
-import { recordProductEvent } from "@/product-operations/writers";
+import { recordProductMilestone } from "@/product-operations/integration";
 import { cookies } from "next/headers";
 import { chooseOrganization, requestPasswordReset, signIn, signOut, updatePassword } from "./actions";
 
@@ -90,7 +90,7 @@ describe("authentication actions", () => {
     const requestId = "123e4567-e89b-12d3-a456-426614174000";
 
     await expect(signIn(null, form({ email: "person@example.com", password: "password", requestId }))).rejects.toMatchObject({ digest: "NEXT_REDIRECT;/choose-organization?returnTo=%2Fdashboard" });
-    expect(recordProductEvent).toHaveBeenCalledWith({
+    expect(recordProductMilestone).toHaveBeenCalledWith({
       organizationId: "first-organization",
       eventName: "auth.sign_in_succeeded",
       workflowArea: "auth",
@@ -127,7 +127,7 @@ describe("authentication actions", () => {
     getAccessState.mockResolvedValue({ profile: { status: "active" }, memberships: [{ organizationId: "org-id" }] });
 
     await expect(signIn(null, form({ email: "person@example.com", password: "password" }))).rejects.toMatchObject({ digest: "NEXT_REDIRECT;/dashboard" });
-    expect(recordProductEvent).not.toHaveBeenCalled();
+    expect(recordProductMilestone).not.toHaveBeenCalled();
     expect(writeAuditEvent).not.toHaveBeenCalled();
   });
 

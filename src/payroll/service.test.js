@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getTableName } from "drizzle-orm";
 
-const mocks = vi.hoisted(() => ({ getDb: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getDb: vi.fn(), recordProductMilestone: vi.fn(), writeAuditEvent: vi.fn() }));
 vi.mock("@/db", () => ({ getDb: mocks.getDb }));
+vi.mock("@/product-operations/integration", () => ({ recordProductMilestone: mocks.recordProductMilestone }));
+vi.mock("@/lib/audit", () => ({ writeAuditEvent: mocks.writeAuditEvent }));
 
 import { decodeCursor, PAYROLL_PAGE_SIZE } from "./pagination";
-import { confirmPayroll, getPayrollRunStatus, listPayrollRuns } from "./service";
+import { confirmPayroll, getPayrollRunStatus, listPayrollRuns, previewPayroll } from "./service";
 
 function queryReturning(rows) {
   const chain = {
@@ -19,10 +22,145 @@ function queryReturning(rows) {
   return chain;
 }
 
+function previewDatabase({ previewToken = null } = {}) {
+  let currentPreviewToken = previewToken;
+  const timestamp = new Date("2026-08-26T00:00:00.000Z");
+  const organization = { id: "organization-id", name: "Example organization", timezone: "UTC", defaultCurrency: "USD", status: "active", updatedAt: timestamp };
+  const schedule = { id: "schedule-id", frequency: "weekly", anchorStartDate: "2026-08-17", effectiveStartDate: "2026-08-17", version: 1, updatedAt: timestamp };
+  const employee = { id: "employee-id", employeeNumber: "E-001", legalName: "Example employee", hireDate: "2026-01-01", status: "active", updatedAt: timestamp };
+  const setting = {
+    id: "setting-id",
+    employeeId: employee.id,
+    effectiveFrom: "2026-01-01",
+    effectiveTo: null,
+    payFrequency: "weekly",
+    version: 1,
+    grossAmountMinor: 100000,
+    currency: "USD",
+    overtimeEligible: false,
+    standardPeriodMinutes: 2400,
+    overtimeMultiplierBasisPoints: 15000,
+    updatedAt: timestamp,
+  };
+  const run = {
+    id: "confirmed-run",
+    organizationId: organization.id,
+    periodStart: "2026-08-24",
+    periodEnd: "2026-08-30",
+    confirmedByProfileId: "actor-id",
+    status: "queued",
+  };
+
+  function select(fields = {}) {
+    let tableName;
+    const chain = {
+      from(table) { tableName = getTableName(table); return chain; },
+      innerJoin() { return chain; },
+      leftJoin() { return chain; },
+      where() { return chain; },
+      orderBy() { return chain; },
+      limit() { return Promise.resolve(rows()); },
+      then(resolve, reject) { return Promise.resolve(rows()).then(resolve, reject); },
+    };
+    function rows() {
+      if (tableName === "organizations") return [{ organization, schedule }];
+      if (tableName === "payroll_runs") return [];
+      if (tableName === "payroll_preview_tokens") return currentPreviewToken ? [currentPreviewToken] : [];
+      if (tableName === "employees") return [employee];
+      if (tableName === "pay_settings") return [setting];
+      if (tableName === "pay_setting_deductions") return [];
+      return [];
+    }
+    return chain;
+  }
+
+  function insert(table) {
+    const tableName = getTableName(table);
+    return {
+      values() {
+        if (tableName === "payroll_runs") return { returning: () => Promise.resolve([run]) };
+        if (tableName === "payouts") return { returning: () => Promise.resolve([{ id: "payout-id" }]) };
+        return Promise.resolve();
+      },
+    };
+  }
+
+  function update() {
+    return { set: () => ({ where: () => Promise.resolve([]) }) };
+  }
+
+  const transaction = {
+    select,
+    insert,
+    update,
+    execute: vi.fn().mockResolvedValue([]),
+  };
+  const database = {
+    select,
+    insert,
+    update,
+    transaction: (callback) => callback(transaction),
+    set previewToken(value) { currentPreviewToken = value; },
+  };
+  return database;
+}
+
 describe("payroll read service", () => {
   beforeEach(() => {
     vi.useRealTimers();
     vi.resetAllMocks();
+  });
+
+  it("records a consent controlled milestone after creating a payroll preview, covers: AC-4 and AC-5", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-04T00:00:00.000Z"));
+    vi.stubEnv("SUPABASE_PAYSLIPS_BUCKET", "private-payslips");
+    const database = previewDatabase();
+    mocks.getDb.mockReturnValue(database);
+
+    const result = await previewPayroll({ organizationId: "organization-id", actorProfileId: "actor-id" });
+
+    expect(result.token).toBeTruthy();
+    expect(mocks.recordProductMilestone).toHaveBeenCalledWith({
+      organizationId: "organization-id",
+      eventName: "payroll.preview_created",
+      workflowArea: "payroll",
+      resultCategory: "success",
+      durationMs: expect.any(Number),
+      occurrenceIdentity: `${result.fingerprint}:${result.period.periodEnd}`,
+      analyticsProfileId: "actor-id",
+    });
+  });
+
+  it("records a consent controlled milestone after confirming a payroll preview, covers: AC-4 and AC-5", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-04T00:00:00.000Z"));
+    vi.stubEnv("SUPABASE_PAYSLIPS_BUCKET", "private-payslips");
+    const database = previewDatabase();
+    const preview = await previewPayroll({ organizationId: "organization-id", actorProfileId: "actor-id", persistToken: false, database });
+    database.previewToken = {
+      actorProfileId: "actor-id",
+      consumedAt: null,
+      expiresAt: new Date("2026-09-04T00:30:00.000Z"),
+      periodStart: preview.period.periodStart,
+      periodEnd: preview.period.periodEnd,
+      fingerprint: preview.fingerprint,
+      calculationVersion: "fixed-pay-v1",
+    };
+    mocks.getDb.mockReturnValue(database);
+
+    const result = await confirmPayroll({ organizationId: "organization-id", actorProfileId: "actor-id", token: "preview-token" });
+
+    expect(result).toMatchObject({ run: { id: "confirmed-run" }, duplicate: false });
+    expect(mocks.recordProductMilestone).toHaveBeenCalledWith({
+      organizationId: "organization-id",
+      eventName: "payroll.confirmed",
+      workflowArea: "payroll",
+      resultCategory: "success",
+      durationMs: expect.any(Number),
+      occurrenceIdentity: "confirmed-run:confirmed",
+      analyticsProfileId: "actor-id",
+    });
   });
 
   it("returns a narrow completed run state and attempt count, covers: AC-5, AC-9, and AC-10", async () => {

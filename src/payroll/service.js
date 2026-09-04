@@ -27,8 +27,7 @@ import { decodeCursor, decodeTimestampCursor, encodeCursor, encodeTimestampCurso
 import { isOvertimeEnabled } from "@/overtime/config";
 import { getApprovedTimecardsForPayroll, insertPayoutEarningLine, overtimeFingerprintRows, writePayrollTimecardAudit } from "@/overtime/service";
 import { recordPayrollMetric } from "./telemetry";
-import { isProductOperationsEnabled } from "@/product-operations/config";
-import { recordProductEvent } from "@/product-operations/writers";
+import { recordProductMilestone } from "@/product-operations/integration";
 
 const PREVIEW_LIFETIME_MS = 30 * 60 * 1000;
 const DELAYED_AFTER_MS = 30 * 60 * 1000;
@@ -237,8 +236,7 @@ export async function previewPayroll({ organizationId, actorProfileId, persistTo
       tokenHash,
       expiresAt,
     });
-    if (isProductOperationsEnabled()) await recordProductEvent({
-      db: database,
+    await recordProductMilestone({
       organizationId,
       eventName: "payroll.preview_created",
       workflowArea: "payroll",
@@ -354,18 +352,17 @@ export async function confirmPayroll({ organizationId, actorProfileId, token }) 
       entityId: run.id,
       metadata: { calculationVersion: PAYROLL_CALCULATION_VERSION, status: "queued" },
     });
-    if (isProductOperationsEnabled()) await recordProductEvent({
-      db: transaction,
+    if (isOvertimeEnabled()) await writePayrollTimecardAudit(transaction, organizationId, actorProfileId, run.id, preview.rows.map((row) => row.timecard));
+    return { run, duplicate: false };
+    });
+    if (!result.duplicate) await recordProductMilestone({
       organizationId,
       eventName: "payroll.confirmed",
       workflowArea: "payroll",
       resultCategory: "success",
       durationMs: Date.now() - startedAt,
-      occurrenceIdentity: `${run.id}:confirmed`,
+      occurrenceIdentity: `${result.run.id}:confirmed`,
       analyticsProfileId: actorProfileId,
-    });
-    if (isOvertimeEnabled()) await writePayrollTimecardAudit(transaction, organizationId, actorProfileId, run.id, preview.rows.map((row) => row.timecard));
-    return { run, duplicate: false };
     });
     recordPayrollMetric({
       operation: "payroll.confirm",

@@ -14,6 +14,17 @@ describe("operational privacy and grouping", () => {
     expect(db.insert).not.toHaveBeenCalled();
   });
 
+  it("fails closed when privacy controls are disabled", async () => {
+    vi.stubEnv("HR_PULSE_PRIVACY_ENABLED", "false");
+    const db = { insert: vi.fn(), select: vi.fn() };
+    const organizationId = "123e4567-e89b-42d3-a456-426614174000";
+    const profileId = "223e4567-e89b-42d3-a456-426614174000";
+
+    await expect(recordProductEvent({ db, organizationId, eventName: "payroll.completed", occurrenceIdentity: "privacy-disabled", analyticsProfileId: profileId })).resolves.toBeNull();
+    await expect(recordOperationFailure({ db, organizationId, operation: "payroll.calculation", safeCode: "PAYROLL_PROCESSING_FAILED", analyticsProfileId: profileId })).resolves.toBeNull();
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
   it("stores only reviewed audit metadata fields", () => {
     expect(serializeSafeAuditMetadata({ version: 3, changedFields: ["phone", "email", "email"], errorCode: "PAYROLL_FAILED", grossAmountMinor: 500 })).toEqual({
       resultingVersion: 3,

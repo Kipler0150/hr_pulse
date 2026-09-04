@@ -16,7 +16,7 @@ import { PayrollError, serializePayrollError } from "./errors";
 import { sha256 } from "./fingerprint";
 import { recordPayrollMetric } from "./telemetry";
 import { isProductOperationsEnabled } from "@/product-operations/config";
-import { recordOperationFailure, recordProductEvent } from "@/product-operations/writers";
+import { recordFailureSummary, recordProductMilestone } from "@/product-operations/integration";
 
 const LEASE_MS = 5 * 60 * 1000;
 const PAYSLIP_TEMPLATE_VERSION = 1;
@@ -125,16 +125,6 @@ async function finalizeRun(run, attemptId, eventId) {
       entityId: run.id,
       metadata: { processingGeneration: run.processingGeneration, calculationVersion: run.calculationVersion },
     });
-    if (isProductOperationsEnabled()) await recordProductEvent({
-      db: transaction,
-      organizationId: run.organizationId,
-      eventName: "payroll.completed",
-      workflowArea: "payroll",
-      resultCategory: "success",
-      durationMs: null,
-      occurrenceIdentity: `${run.id}:completed`,
-      analyticsProfileId: run.confirmedByProfileId,
-    });
   });
 }
 
@@ -151,6 +141,15 @@ export async function processPayrollRun({ runId, organizationId, generation, eve
       await generateBatch(run, rows.slice(index, index + 25), eventId);
     }
     await finalizeRun(run, run.attemptId, eventId);
+    await recordProductMilestone({
+      organizationId: run.organizationId,
+      eventName: "payroll.completed",
+      workflowArea: "payroll",
+      resultCategory: "success",
+      durationMs: null,
+      occurrenceIdentity: `${run.id}:completed`,
+      analyticsProfileId: run.confirmedByProfileId,
+    });
     recordPayrollMetric({ operation: "payroll.calculation", organizationId, entityId: run.id, code: "ok", durationMs: Date.now() - startedAt });
     return { status: "completed", payoutCount: rows.length };
   } catch (error) {
@@ -165,8 +164,7 @@ export async function processPayrollRun({ runId, organizationId, generation, eve
         eq(payrollRuns.leaseOwner, eventId),
       ));
     recordPayrollMetric({ operation: "payroll.calculation", organizationId, entityId: run.id, code: safe.code, durationMs: Date.now() - startedAt });
-    if (isProductOperationsEnabled()) await recordOperationFailure({
-      db: database,
+    await recordFailureSummary({
       organizationId,
       operation: "payroll.calculation",
       safeCode: safe.code,
@@ -185,7 +183,7 @@ export async function processPayrollRun({ runId, organizationId, generation, eve
 export async function failPayrollRun({ runId, organizationId, generation, error }) {
   const database = getDb();
   const safe = serializePayrollError(error);
-  await database.transaction(async (transaction) => {
+  const failedRun = await database.transaction(async (transaction) => {
     await transaction.execute(sql`SELECT id FROM organizations WHERE id = ${organizationId} FOR UPDATE`);
     await transaction.execute(sql`SELECT id FROM payroll_runs WHERE id = ${runId} FOR UPDATE`);
     const [run] = await transaction.select().from(payrollRuns).where(and(eq(payrollRuns.id, runId), eq(payrollRuns.organizationId, organizationId)));
@@ -206,29 +204,28 @@ export async function failPayrollRun({ runId, organizationId, generation, error 
       result: "unexpected_error",
       metadata: { processingGeneration: generation, errorCode: safe.code },
     });
-    if (isProductOperationsEnabled()) {
-      await recordProductEvent({
-        db: transaction,
-        organizationId,
-        eventName: "payroll.failed",
-        workflowArea: "payroll",
-        resultCategory: "unexpected_error",
-        occurrenceIdentity: `${runId}:failed`,
-        analyticsProfileId: run.confirmedByProfileId,
-      });
-      await recordOperationFailure({
-        db: transaction,
-        organizationId,
-        operation: "payroll.calculation",
-        safeCode: safe.code,
-        affectedEntityType: "payroll_run",
-        affectedEntityId: runId,
-        workflowArea: "payroll",
-        workflowStatus: "failed",
-        recoveryAvailable: true,
-        analyticsProfileId: run.confirmedByProfileId,
-      });
-    }
+    return { profileId: run.confirmedByProfileId };
   });
+  if (failedRun) {
+    await recordProductMilestone({
+      organizationId,
+      eventName: "payroll.failed",
+      workflowArea: "payroll",
+      resultCategory: "unexpected_error",
+      occurrenceIdentity: `${runId}:failed`,
+      analyticsProfileId: failedRun.profileId,
+    });
+    await recordFailureSummary({
+      organizationId,
+      operation: "payroll.calculation",
+      safeCode: safe.code,
+      affectedEntityType: "payroll_run",
+      affectedEntityId: runId,
+      workflowArea: "payroll",
+      workflowStatus: "failed",
+      recoveryAvailable: true,
+      analyticsProfileId: failedRun.profileId,
+    });
+  }
   Sentry.captureException(error, { tags: { organizationId, runId, code: safe.code, exhausted: "true" } });
 }

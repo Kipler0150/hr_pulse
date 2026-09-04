@@ -14,7 +14,6 @@ import {
   submitTimecard,
 } from "@/overtime/service";
 import { recordOvertimeMetric, reportOvertimeFailure } from "@/overtime/telemetry";
-import { recordProductMilestone } from "@/product-operations/integration";
 
 function text(formData, key) { return String(formData.get(key) ?? "").trim(); }
 
@@ -34,11 +33,6 @@ function responseError(error, context) {
 
 function responseSuccess(context) {
   recordOvertimeMetric({ ...context, code: "ok" });
-}
-
-async function recordTimecardMilestone(context, eventName, result) {
-  if (!result?.card?.id || !result.card.version) return;
-  await recordProductMilestone({ organizationId: context.organizationId, eventName, workflowArea: "timecards", resultCategory: "success", occurrenceIdentity: `${result.card.id}:${result.card.version}`, analyticsProfileId: context.profile?.id });
 }
 
 function refreshTimecards(timecardId = null) {
@@ -75,7 +69,6 @@ export async function submitTimecardAction(previousState, formData) {
     context = await requireOvertimeContext();
     const result = await submitTimecard({ context, timecardId: validateUuid(timecardId, "timecardId"), expectedVersion: integer(formData, "expectedVersion", { min: 1, max: Number.MAX_SAFE_INTEGER }), zeroHoursConfirmed: formData.get("zeroHoursConfirmed") === "on", requestId: requestId(formData) });
     responseSuccess({ operation: "timecard.submit", organizationId: context.organizationId, entityId: timecardId, durationMs: Date.now() - startedAt });
-    await recordTimecardMilestone(context, "timecard.submitted", result);
     refreshTimecards(timecardId);
     return { success: true, status: result.card.status, version: result.card.version, duplicate: result.duplicate };
   } catch (error) { return responseError(error, { operation: "timecard.submit", organizationId: context?.organizationId, timecardId, durationMs: Date.now() - startedAt }); }
@@ -102,7 +95,6 @@ export async function approveTimecardAction(previousState, formData) {
     context = await requireOvertimeContext();
     const result = await approveTimecard({ context, timecardId: validateUuid(timecardId, "timecardId"), expectedVersion: integer(formData, "expectedVersion", { min: 1, max: Number.MAX_SAFE_INTEGER }), fallbackReason: text(formData, "fallbackReason"), requestId: requestId(formData) });
     responseSuccess({ operation: "timecard.approve", organizationId: context.organizationId, entityId: timecardId, durationMs: Date.now() - startedAt });
-    if (result.card.status === "approved") await recordTimecardMilestone(context, "timecard.approved", result);
     refreshTimecards(timecardId);
     return { success: true, status: result.card.status, version: result.card.version, configurationDrift: result.configurationDrift, duplicate: result.duplicate };
   } catch (error) { return responseError(error, { operation: "timecard.approve", organizationId: context?.organizationId, timecardId, durationMs: Date.now() - startedAt }); }

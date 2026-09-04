@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   uploadVerifiedPayslip: vi.fn(),
   removePayslip: vi.fn(),
   writeAuditEvent: vi.fn(),
+  recordProductMilestone: vi.fn(),
+  recordFailureSummary: vi.fn(),
 }));
 
 vi.mock("@sentry/nextjs", () => ({ captureException: mocks.captureException, metrics: { count: mocks.count, distribution: mocks.distribution } }));
@@ -17,6 +19,7 @@ vi.mock("@/db", () => ({ getDb: mocks.getDb }));
 vi.mock("./pdf", () => ({ generatePayslipPdf: mocks.generatePayslipPdf }));
 vi.mock("@/lib/storage", () => ({ uploadVerifiedPayslip: mocks.uploadVerifiedPayslip, removePayslip: mocks.removePayslip }));
 vi.mock("@/lib/audit", () => ({ writeAuditEvent: mocks.writeAuditEvent }));
+vi.mock("@/product-operations/integration", () => ({ recordProductMilestone: mocks.recordProductMilestone, recordFailureSummary: mocks.recordFailureSummary }));
 
 import { PayrollError } from "./errors";
 import { failPayrollRun, processPayrollRun } from "./processing";
@@ -53,6 +56,7 @@ function createDatabase({ runStatus = "queued", payoutCount = 1, uploadFails = f
     status: runStatus,
     leaseOwner: null,
     leaseExpiresAt: null,
+    confirmedByProfileId: "profile-id",
   };
 
   function select(fields = {}) {
@@ -141,6 +145,15 @@ describe("payroll processing", () => {
       expect.objectContaining({ tableName: "payroll_runs", values: expect.objectContaining({ status: "completed", leaseOwner: null }) }),
     ]));
     expect(mocks.writeAuditEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ action: "payroll.completed", entityId: runId }));
+    expect(mocks.recordProductMilestone).toHaveBeenCalledWith({
+      organizationId,
+      eventName: "payroll.completed",
+      workflowArea: "payroll",
+      resultCategory: "success",
+      durationMs: null,
+      occurrenceIdentity: `${runId}:completed`,
+      analyticsProfileId: "profile-id",
+    });
   });
 
   it("ignores a duplicate event for a completed generation, covers: AC-8 and AC-11", async () => {
@@ -150,6 +163,7 @@ describe("payroll processing", () => {
     await expect(processPayrollRun({ runId, organizationId, generation: 1, eventId: "duplicate-event" }))
       .resolves.toEqual({ status: "noop" });
     expect(mocks.uploadVerifiedPayslip).not.toHaveBeenCalled();
+    expect(mocks.recordProductMilestone).not.toHaveBeenCalled();
   });
 
   it("records a retryable attempt and releases its lease after document failure, covers: AC-7, AC-8, and AC-11", async () => {
@@ -166,6 +180,17 @@ describe("payroll processing", () => {
     ]));
     expect(mocks.captureException).toHaveBeenCalledWith(expect.any(Error), {
       tags: { organizationId, runId, attemptId: "attempt-id", code: "PAYSLIP_INTEGRITY_FAILED" },
+    });
+    expect(mocks.recordFailureSummary).toHaveBeenCalledWith({
+      organizationId,
+      operation: "payroll.calculation",
+      safeCode: "PAYSLIP_INTEGRITY_FAILED",
+      affectedEntityType: "payroll_run",
+      affectedEntityId: runId,
+      workflowArea: "payroll",
+      workflowStatus: "processing",
+      recoveryAvailable: true,
+      analyticsProfileId: "profile-id",
     });
   });
 
@@ -200,5 +225,24 @@ describe("payroll processing", () => {
     ]));
     expect(mocks.writeAuditEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ action: "payroll.failed" }));
     expect(mocks.captureException).toHaveBeenCalledWith(error, { tags: { organizationId, runId, code: "PAYROLL_PROCESSING_FAILED", exhausted: "true" } });
+    expect(mocks.recordProductMilestone).toHaveBeenCalledWith({
+      organizationId,
+      eventName: "payroll.failed",
+      workflowArea: "payroll",
+      resultCategory: "unexpected_error",
+      occurrenceIdentity: `${runId}:failed`,
+      analyticsProfileId: "profile-id",
+    });
+    expect(mocks.recordFailureSummary).toHaveBeenCalledWith({
+      organizationId,
+      operation: "payroll.calculation",
+      safeCode: "PAYROLL_PROCESSING_FAILED",
+      affectedEntityType: "payroll_run",
+      affectedEntityId: runId,
+      workflowArea: "payroll",
+      workflowStatus: "failed",
+      recoveryAvailable: true,
+      analyticsProfileId: "profile-id",
+    });
   });
 });

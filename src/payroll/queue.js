@@ -5,7 +5,7 @@ import { payrollRuns } from "@/db/schema";
 import { inngest } from "@/inngest/client";
 import { PayrollError } from "./errors";
 import { isProductOperationsEnabled } from "@/product-operations/config";
-import { recordOperationFailure } from "@/product-operations/writers";
+import { recordFailureSummary } from "@/product-operations/integration";
 import { writeAuditEvent } from "@/lib/audit";
 
 export const PAYROLL_EVENT_NAME = "payroll/run.requested";
@@ -43,8 +43,7 @@ export async function submitPayrollRun({ runId, organizationId, generation, anal
       queueErrorCode: "QUEUE_DELIVERY_FAILED",
       updatedAt: new Date(),
     }).where(eq(payrollRuns.id, runId));
-    if (isProductOperationsEnabled()) await recordOperationFailure({
-      db: database,
+    await recordFailureSummary({
       organizationId,
       operation: "payroll.queue",
       safeCode: "QUEUE_DELIVERY_FAILED",

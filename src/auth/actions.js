@@ -9,7 +9,7 @@ import { getAccessState, safeReturnTo } from "@/auth/access";
 import { writeAuditEvent } from "@/lib/audit";
 import { createClient, createRecoveryClient } from "@/lib/supabase/server";
 import { isProductOperationsEnabled } from "@/product-operations/config";
-import { recordProductEvent } from "@/product-operations/writers";
+import { recordProductMilestone } from "@/product-operations/integration";
 
 const genericAuthError = "We could not complete that request. Check your details and try again.";
 const resetConfirmation = "If an account matches that email, you will receive a recovery link shortly.";
@@ -54,7 +54,7 @@ export async function signIn(previousState, formData) {
       result: "success",
       correlationId: operationRequestId,
     });
-    await recordProductEvent({
+    await recordProductMilestone({
       organizationId,
       eventName: "auth.sign_in_succeeded",
       workflowArea: "auth",

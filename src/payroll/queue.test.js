@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   captureException: vi.fn(),
   send: vi.fn(),
   updates: [],
+  recordFailureSummary: vi.fn(),
 }));
 
 vi.mock("@sentry/nextjs", () => ({ captureException: mocks.captureException }));
@@ -18,6 +19,7 @@ vi.mock("@/db", () => ({
     }),
   }),
 }));
+vi.mock("@/product-operations/integration", () => ({ recordFailureSummary: mocks.recordFailureSummary }));
 
 import { PAYROLL_EVENT_NAME, PAYROLL_EVENT_VERSION, payrollEventKey, submitPayrollRun } from "./queue";
 
@@ -46,12 +48,23 @@ describe("payroll queue submission", () => {
     const providerError = new Error("provider request body must stay private");
     mocks.send.mockRejectedValue(providerError);
 
-    await expect(submitPayrollRun({ runId: "run-id", organizationId: "organization-id", generation: 1 }))
+    await expect(submitPayrollRun({ runId: "run-id", organizationId: "organization-id", generation: 1, analyticsProfileId: "profile-id" }))
       .rejects.toMatchObject({ code: "QUEUE_DELIVERY_FAILED", retryable: true });
 
     expect(mocks.updates.at(-1)).toMatchObject({ queueStatus: "failed", queueErrorCode: "QUEUE_DELIVERY_FAILED" });
     expect(mocks.captureException).toHaveBeenCalledWith(providerError, {
       tags: { organizationId: "organization-id", runId: "run-id", code: "QUEUE_DELIVERY_FAILED" },
+    });
+    expect(mocks.recordFailureSummary).toHaveBeenCalledWith({
+      organizationId: "organization-id",
+      operation: "payroll.queue",
+      safeCode: "QUEUE_DELIVERY_FAILED",
+      affectedEntityType: "payroll_run",
+      affectedEntityId: "run-id",
+      workflowArea: "payroll",
+      workflowStatus: "queued",
+      recoveryAvailable: true,
+      analyticsProfileId: "profile-id",
     });
   });
 });
