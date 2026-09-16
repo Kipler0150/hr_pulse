@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
 export const metadata = {
   title: "HR Pulse",
   description: "Payroll and attendance operations for your organization",
+  icons: {
+    icon: [{ url: "/hr-pulse-icon.svg?v=2", type: "image/svg+xml" }],
+  },
 };
 
 export default async function RootLayout({ children }) {
