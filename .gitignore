@@ -43,7 +43,11 @@ yarn-error.log*
 # AI workflow files
 /.agents/
 /.continue/
-/docs/
+/docs/*
+!/docs/user-guide/
+!/docs/user-guide/*.md
+!/docs/developer-guide/
+!/docs/developer-guide/*.md
 **/AGENTS.md
 **/CLAUDE.md
 /skills-lock.json
