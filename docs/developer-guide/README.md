@@ -1,6 +1,6 @@
 # HR Pulse developer handbook
 
-This handbook explains how HR Pulse is designed and implemented. It is written for a full-stack developer with roughly two years of experience: it assumes you can read JavaScript, React, SQL, and HTTP, but it explains the architectural reasons and production concerns behind the code.
+This handbook explains how HR Pulse is designed and implemented, including the architectural decisions and production concerns behind the code.
 
 The goal is not to memorize every function. The goal is to build a mental model that lets you answer four questions when you open any feature:
 
